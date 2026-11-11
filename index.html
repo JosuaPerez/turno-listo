@@ -2,94 +2,36 @@
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#171915"><title>Turno Listo · Barbería</title>
 <style>
 :root{color-scheme:dark;--bg:#171915;--panel:#22251e;--border:#3c4035;--ink:#f8f5e9;--dim:#bdc1b1;--lime:#daff87;--muted:#adcb69}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,sans-serif}header,main,footer{max-width:740px;margin:auto;padding:0 22px}header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:26px;padding-bottom:18px;border-bottom:1px solid var(--border)}.brand{display:flex;align-items:center;gap:12px;color:var(--ink);text-decoration:none;font-weight:850;letter-spacing:.02em}.mark{width:36px;height:36px;border-radius:11px;background:repeating-linear-gradient(-43deg,var(--lime) 0 5px,#31401d 5px 8px);border:2px solid var(--lime)}.nav,a{color:var(--lime)}main{padding-top:40px;padding-bottom:36px}footer{padding-bottom:28px;color:var(--dim);font-size:13px}h1{font-size:clamp(38px,9vw,68px);line-height:1;letter-spacing:-.07em;margin:8px 0 18px}h2{font-size:22px;letter-spacing:-.03em;margin:0 0 12px}.lead,.sub{color:var(--dim)}.lead{margin:0 0 24px;max-width:48ch}.place{color:var(--muted);font-size:13px;letter-spacing:.14em;font-weight:700;text-transform:uppercase}.card{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:20px;margin-bottom:14px}.hero{background:var(--lime);color:#232915;border:0;padding:25px;min-height:155px}.hero strong{font-size:clamp(28px,6vw,45px);letter-spacing:-.055em;display:block}.hero p{margin:8px 0 0}.tag{display:inline-block;border:1px solid currentColor;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;margin-bottom:7px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.metric strong{display:block;font-size:36px;line-height:1;margin:6px 0}.metric span{color:var(--dim);font-size:14px}.buttons,.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.row{justify-content:space-between}.btn,button{font:inherit;font-weight:730;cursor:pointer;background:var(--lime);color:#222913;border:1px solid var(--lime);border-radius:10px;padding:10px 14px;text-decoration:none;display:inline-flex;justify-content:center;align-items:center;min-height:44px}.secondary{background:transparent;border-color:#666e57;color:var(--ink)}button:disabled{opacity:.5;cursor:default}input{width:100%;font:inherit;border:1px solid #666e57;border-radius:10px;background:var(--bg);color:var(--ink);padding:10px 12px;min-height:44px}label{display:grid;gap:5px}.form{display:grid;grid-template-columns:1fr 110px auto;gap:10px;align-items:end}.list{list-style:none;margin:0;padding:0}.list li{border-top:1px solid var(--border);padding:9px 0}.notice{color:#ffd6a5;min-height:1.4em}.refresh{font-size:13px;color:var(--dim);margin:13px 0}.lock{max-width:410px}.lock button{margin-top:12px}.now{margin-bottom:14px}.quiet{font-size:14px;color:var(--dim)}[hidden]{display:none!important}:focus-visible{outline:3px solid #fff;outline-offset:3px}@media(max-width:520px){main{padding-top:28px}.form{grid-template-columns:1fr 100px}.form button{grid-column:1/-1}.card{padding:16px}}
-</style></head>
+
+label{margin:8px 0}fieldset{border:0;padding:0;margin:0;min-width:0}select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid #666e57;border-radius:10px;padding:10px;min-height:44px;width:100%}input[type=checkbox]{width:20px;min-height:20px;accent-color:var(--lime)}.consent{display:flex;align-items:flex-start;gap:9px;font-size:14px}.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.stack{display:grid;gap:8px}.inline{margin:0}.qr{background:white;border-radius:10px;width:min(100%,240px);height:auto;image-rendering:pixelated}.service-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.card p{overflow-wrap:anywhere}
+</style><script src="/assets/qrcode.js" defer></script><script src="/assets/app.js" defer></script></head>
 <body><header><a class="brand" href="/"><span class="mark" aria-hidden="true"></span>Turno Listo</a><a id="nav" class="nav" href="/barbero">Soy barbero</a></header>
 <main>
 <section id="client" hidden>
-<div class="place">Barbería demo · Santo Domingo</div><h1>¿Puedo pasar?</h1><p class="lead">Mira cómo va la fila antes de salir.</p>
-<div class="card hero" aria-live="polite"><span class="tag" id="tag">Consultando</span><strong id="headline">Cargando el estado</strong><p id="detail"></p></div>
-<div class="grid"><div class="card metric"><strong id="count">—</strong><span>En espera</span></div><div class="card metric"><strong id="estimate">—</strong><span>Espera aproximada</span></div></div>
-<div class="buttons"><a hidden id="wa" class="btn" target="_blank" rel="noopener">Escribir por WhatsApp</a><button id="refresh" class="secondary">Actualizar</button></div><p class="refresh" id="last"></p>
+<div class="place" id="shopName">Barbería · Santo Domingo</div><h1>¿Puedo pasar?</h1>
+<div class="card hero" aria-live="polite"><span class="tag" id="tag">Consultando</span><strong id="headline">Cargando la fila</strong><p id="detail"></p></div>
+<div class="grid"><div class="card metric"><strong id="count">—</strong><span>En espera</span></div><div class="card metric"><strong id="estimate">—</strong><span>Espera si te anotas ahora</span></div></div>
+<form class="card" id="join" hidden><h2>Anótate en la fila</h2>
+<label>Nombre<input name="name" required maxlength="60" autocomplete="given-name"></label>
+<label>WhatsApp<input name="phone" type="tel" required maxlength="24" autocomplete="tel"></label>
+<label>Servicio<select name="serviceId" required></select></label>
+<label class="consent"><input name="consent" type="checkbox" required><span>Acepto que la barbería use mi nombre y WhatsApp para manejar mi turno y avisarme.</span></label>
+<button>Anotarme</button></form>
+<div class="card" id="own" hidden><h2>Mi turno</h2><p id="ownText"></p><button class="secondary" id="leave">Salir de la fila</button></div>
+<p class="notice" id="publicError" role="status"></p>
+<a hidden id="wa" class="btn secondary" target="_blank" rel="noopener">Escribir por WhatsApp</a>
 </section>
 <section id="admin" hidden>
-<div class="place">Barbería demo · Santo Domingo</div><h1>Mi fila</h1>
-<form class="card lock" id="login"><h2>Entra a tu agenda</h2><label>Clave del barbero<input id="password" type="password" autocomplete="current-password" required></label><button>Entrar</button></form>
+<div class="place" id="adminName">Turno Listo · Santo Domingo</div><h1>Mi fila</h1>
+<form class="card lock" id="login"><h2>Entra a tu agenda</h2><label>Clave del barbero<input name="password" type="password" autocomplete="current-password" required></label><button>Entrar</button></form>
 <p class="notice" id="error" role="status"></p>
 <div id="controls" hidden>
-<div class="card row"><div><h2>Estado de la barbería</h2><span id="shop" class="sub"></span></div><button type="button" id="toggle" class="secondary"></button></div>
-<div class="card"><h2>En el sillón</h2><div class="row now"><div id="current"></div><button type="button" id="finish" hidden>Terminar turno</button></div><button type="button" id="next">Llamar al siguiente</button></div>
-<div class="card"><h2 id="queueHeading">Fila</h2><ul id="queue" class="list"></ul><form id="add" class="form"><label>Nombre o apodo<input id="name" required maxlength="60" autocomplete="off" placeholder="Ej. Luis"></label><label>Minutos<input id="minutes" type="number" min="5" max="180" required></label><button>Agregar a la fila</button></form></div>
-<details class="card"><summary>Ajustes de la barbería</summary><form id="settings"><p><label>WhatsApp público<input id="phone" type="tel" placeholder="+1 809 000 0000"></label></p><p><label>Minutos por turno<input id="duration" type="number" min="5" max="180" required></label></p><button>Guardar ajustes</button></form></details>
-<div class="buttons"><button type="button" id="share" class="secondary">Copiar enlace de la fila</button><button type="button" id="logout" class="secondary">Cerrar sesión</button></div><p id="shareStatus" class="quiet" role="status"></p>
-</div></section>
-</main><footer>La espera es aproximada. La fila se actualiza cuando el barbero mueve un turno.</footer>
-<script>
-const $=id=>document.getElementById(id);
-let key=sessionStorage.getItem('turno-key')||'', state, sending=false, publicPending=false;
-const admin=location.pathname==='/barbero';
-async function api(path, payload){
- const headers=path==='agenda'?{'Authorization':'Bearer '+key}:{};
- if(payload) headers['Content-Type']='application/json';
- const r=await fetch('/api/'+path,{headers,cache:'no-store',method:payload?'POST':'GET',body:payload?JSON.stringify(payload):undefined});
- const data=await r.json();
- if(!r.ok) throw new Error(data.error);
- return data;
-}
-async function updatePublic(){
- if(publicPending)return;
- publicPending=true;
- try{
-  const s=await api('estado');
-  const [tag,title,detail]=!s.open?['Pausada','Por ahora no recibimos turnos','Escríbenos para saber cuándo volveremos a atender.']:s.busy||s.waiting?['Atendiendo','Hay gente en turno',s.minutes?'Si quieres pasar, calcula aproximadamente '+s.minutes+' min.':'El barbero está terminando. Confirma por WhatsApp si está disponible.']:['Disponible','Puedes pasar','Ahora mismo no hay nadie en la fila.'];
-  $('tag').textContent=tag;$('headline').textContent=title;$('detail').textContent=detail;
-  $('count').textContent=s.waiting;$('estimate').textContent=!s.open?'—':s.busy&&s.minutes===0?'Por confirmar':s.minutes+' min';
-  $('wa').hidden=!s.phone;
-  if(s.phone)$('wa').href='https://wa.me/'+s.phone+'?text='+encodeURIComponent('Hola, vi la fila de la barbería. ¿Puedo pasar?');
-  $('last').textContent='Actualizado a las '+new Intl.DateTimeFormat('es-DO',{timeStyle:'short',timeZone:'America/Santo_Domingo'}).format(new Date());
- }catch{
-  $('tag').textContent='Sin conexión';$('headline').textContent='No pudimos consultar la fila';$('detail').textContent='Toca Actualizar para intentar de nuevo.';
-  $('count').textContent='—';$('estimate').textContent='—';$('wa').hidden=true;$('last').textContent='';
- }finally{publicPending=false;}
-}
-function render(s){
- state=s;$('login').hidden=true;$('controls').hidden=false;
- $('shop').textContent=s.open?'Recibiendo turnos':'Recepción pausada';
- $('toggle').textContent=s.open?'Pausar recepción':'Reabrir recepción';
- $('current').textContent=s.current?s.current.name+' · '+s.current.minutes+' min':'Sillón libre';
- $('finish').hidden=!s.current;$('next').disabled=!!s.current||!s.queue.length;
- $('queueHeading').textContent='En espera ('+s.queue.length+')';
- $('queue').replaceChildren(...s.queue.map((t,i)=>{
-   const li=document.createElement('li'),label=document.createElement('span'),remove=document.createElement('button');
-   li.className='row';label.textContent=(i+1)+'. '+t.name+' · '+t.minutes+' min';
-   remove.type='button';remove.className='secondary';remove.textContent='Quitar';remove.setAttribute('aria-label','Quitar a '+t.name);
-   remove.onclick=()=>change('remove',{id:t.id});li.append(label,remove);return li;
- }));
- if(!s.queue.length){const li=document.createElement('li');li.className='quiet';li.textContent='Nadie en espera.';$('queue').append(li);}
- if(!$('minutes').value)$('minutes').value=s.duration;
-}
-async function enter(){
- try{const s=await api('agenda');sessionStorage.setItem('turno-key',key);render(s);$('phone').value=s.phone;$('duration').value=s.duration;$('password').value='';$('error').textContent='';}
- catch(e){$('error').textContent=e.message;}
-}
-async function change(action,fields={}){
- if(sending)return false;
- sending=true;$('error').textContent='';
- try {render(await api('agenda',{action,...fields}));return true;}
- catch(e){$('error').textContent=e.message;return false;}
- finally{sending=false;}
-}
-if(admin){
- $('admin').hidden=false;$('nav').href='/';$('nav').textContent='Vista de clientes';
- $('login').onsubmit=e=>{e.preventDefault();key=$('password').value.trim();enter();};
- $('toggle').onclick=()=>change('toggle');
- $('next').onclick=()=>change('next');
- $('finish').onclick=()=>change('finish',{id:state.current.id});
- $('add').onsubmit=async e=>{e.preventDefault();if(await change('add',{name:$('name').value,minutes:$('minutes').value})){$('name').value='';$('minutes').value=state.duration;$('name').focus();}};
- $('settings').onsubmit=async e=>{e.preventDefault();if(await change('settings',{phone:$('phone').value,duration:$('duration').value})){$('minutes').value=state.duration;$('shareStatus').textContent='Ajustes guardados.';}};
- $('logout').onclick=()=>{sessionStorage.removeItem('turno-key');location.reload();};
- $('share').onclick=async()=>{const link=new URL('/',location.href).href;try{await navigator.clipboard.writeText(link);$('shareStatus').textContent='Enlace copiado.';}catch{$('shareStatus').textContent=link;}};
- if(key)enter();
-}else{
- $('client').hidden=false;$('refresh').onclick=updatePublic;updatePublic();setInterval(updatePublic,15000);
-}
-</script></body></html>
+<div class="card row"><div><h2>Recepción</h2><span id="shop" class="sub"></span></div><button id="toggle" class="secondary"></button></div>
+<div id="chairs"></div>
+<div class="card"><h2 id="queueHeading">En espera</h2><ul id="queue" class="list"></ul></div>
+<details class="card"><summary>Agregar a alguien sin celular</summary>
+<form id="add"><label>Nombre o apodo<input name="name" required maxlength="60"></label><label>WhatsApp (opcional)<input name="phone" type="tel" maxlength="24"></label><label>Servicio<select name="serviceId" required></select></label><button>Agregar a la fila</button></form></details>
+<details class="card" id="share"><summary>Enlace y QR de la barbería</summary><p><a id="customerLink"></a></p><canvas id="qr" class="qr" aria-label="Código QR del enlace público"></canvas><div class="actions"><a class="btn secondary" id="download" download="turno-listo-qr.png">Descargar QR</a><button class="secondary" id="copyLink">Copiar enlace</button></div><p id="shareStatus" role="status"></p></details>
+<details class="card" id="settingsCard"><summary>Ajustes</summary><form id="settings"><label>WhatsApp de la barbería<input name="phone" type="tel" maxlength="24"></label><button>Guardar ajustes</button></form></details>
+<button id="logout" class="secondary">Cerrar sesión</button></div>
+</section></main><footer>La espera es aproximada. La fila se actualiza sola.</footer></body></html>
