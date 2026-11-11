@@ -2,7 +2,7 @@ const $=id=>document.getElementById(id);
 const admin=location.pathname==='/barbero';
 const publicSlug=location.pathname.split('/')[2]||'turno-listo';
 const tokenKey='turno-ticket:'+publicSlug;
-let key=sessionStorage.getItem('turno-key')||'', token=localStorage.getItem(tokenKey)||'', state, pending=false, renderedSlug;
+let token=localStorage.getItem(tokenKey)||'', state, pending=false, renderedSlug;
 const adminPath='/api/agenda';
 const publicPath='/api/b/'+encodeURIComponent(publicSlug);
 const values=form=>Object.fromEntries(new FormData(form));
@@ -16,7 +16,6 @@ function element(tag,value,cls){
 }
 async function api(path,body){
  const headers={};
- if(path===adminPath&&key)headers.Authorization='Bearer '+key;
  if(path.startsWith(publicPath)&&token)headers['X-Turno-Token']=token;
  if(body)headers['Content-Type']='application/json';
  const r=await fetch(path,{headers,cache:'no-store',method:body?'POST':'GET',body:body?JSON.stringify(body):undefined});
@@ -74,7 +73,7 @@ async function refreshPublic(){
  if(pending)return;
  pending=true;
  try {publicRender(await api(publicPath+'/estado'));}
- catch(e){msg('headline','No pudimos consultar la fila');msg('detail',e.message);$('join').hidden=true;}
+ catch(e){msg('headline',e.status===404?'Todavía no hay una barbería en este enlace':'No pudimos consultar la fila');msg('detail',e.message);$('join').hidden=true;}
  finally{pending=false;}
 }
 async function publicChange(data){
@@ -83,7 +82,7 @@ async function publicChange(data){
  try{
   const s=await api(publicPath+'/fila',data);
   token=s.token||'';if(token)localStorage.setItem(tokenKey,token);else localStorage.removeItem(tokenKey);
-  publicRender(s);if(data.action==='join')$('join').reset();
+  publicRender(s);if(data.action==='join')$('join').reset();if(data.action==='erase')msg('publicError','Borramos tus datos de la fila.');
  }catch(e){msg('publicError',e.message);}
  finally{pending=false;}
 }
@@ -100,12 +99,12 @@ function renderQr(slug){
  $('download').href=canvas.toDataURL('image/png');$('download').download=slug+'-qr.png';
 }
 function render(s){
- state=s;$('login').hidden=true;$('controls').hidden=false;
+ state=s;$('login').hidden=true;$('registerCard').hidden=true;$('controls').hidden=false;
  msg('adminName',s.name);msg('shop',s.open?'Recibiendo turnos':'Recepción pausada');
  msg('toggle',s.open?'Pausar recepción':'Reabrir recepción');
  $('chairs').replaceChildren(...s.chairs.map(chair=>{
    const t=s.active[chair.id], card=element('div',null,'card');
-   card.append(element('h2',chair.name),element('p',t?t.name:'Sillón libre'));
+   card.append(element('h2',chair.name),element('p',t?(t.name||'Cliente sin nombre'):'Sillón libre'));
    const next=button('Llamar al siguiente',()=>change('next',{chairId:chair.id}));
    next.disabled=!s.queue.some(v=>s.mode==='shared'||v.chairId===chair.id);
    if(!t)card.append(next);
@@ -152,8 +151,8 @@ async function refreshAdmin(){
  finally{pending=false;}
 }
 async function enter(){
- try{const s=await api(adminPath);render(s);settings(s);sessionStorage.setItem('turno-key',key);$('login').reset();msg('error');}
- catch(e){msg('error',e.message);}
+ try{const s=await api(adminPath);render(s);settings(s);$('login').reset();msg('error');}
+ catch(e){if(e.status!==401)msg('error',e.message);}
 }
 async function change(action,fields={}){
  if(pending)return false;
@@ -164,7 +163,16 @@ async function change(action,fields={}){
 }
 if(admin){
  $('admin').hidden=false;$('nav').href='/';msg('nav','Vista de clientes');
- $('login').onsubmit=e=>{e.preventDefault();key=values($('login')).password.trim();enter();};
+ for(const id of ['login','register']){
+   const form=$(id);
+   form.onsubmit=async e=>{
+     e.preventDefault();if(pending)return;
+     pending=true;msg('error');
+     try{await api('/api/auth/'+id,values(form));form.reset();await enter();}
+     catch(error){msg('error',error.message);}
+     finally{pending=false;}
+   };
+ }
  $('toggle').onclick=()=>change('toggle');
  $('add').onsubmit=async e=>{e.preventDefault();if(await change('add',values($('add'))))$('add').reset();};
  $('addChair').onclick=()=>addChair();
@@ -175,13 +183,14 @@ if(admin){
    const services=[...$('serviceSettings').children].map(row=>{const [name,minutes,price]=row.querySelectorAll('input');return {name:name.value,minutes:minutes.value,price:price.value};});
    if(await change('settings',{...values($('settings')),chairs,services,autoSkip:$('settings').elements.autoSkip.checked})){settings(state);msg('shareStatus','Ajustes guardados.');}
  };
- $('logout').onclick=()=>{sessionStorage.removeItem('turno-key');location.reload();};
+ $('logout').onclick=async()=>{try{await api('/api/auth/logout',{});location.reload();}catch(e){msg('error',e.message);}};
  $('copyLink').onclick=async()=>{const link=$('customerLink').href;try{await navigator.clipboard.writeText(link);msg('shareStatus','Enlace copiado.');}catch{msg('shareStatus',link);}};
- if(key)enter();
+ enter();
  setInterval(refreshTimers,1000);setInterval(refreshAdmin,5000);
 }else{
  $('client').hidden=false;
  $('join').onsubmit=e=>{e.preventDefault();const data=values($('join'));publicChange({...data,consent:data.consent==='on',action:'join'});};
  $('leave').onclick=()=>publicChange({action:'leave'});
+ $('erase').onclick=()=>publicChange({action:'erase'});
  refreshPublic();setInterval(refreshPublic,5000);
 }

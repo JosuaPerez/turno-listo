@@ -1,3 +1,4 @@
+import {getAccount,authRoute,parseBody,allowed} from './auth.mjs';
 import {NotificationProvider,enqueueNotice,dispatchNotices} from './notifications.mjs';
 import {firstChair,chairAccepts,nextFor,serviceMinutes,range,predict,record} from './estimates.mjs';
 export const initial = {
@@ -5,6 +6,7 @@ export const initial = {
   duration:30, queue:[], current:null, notices:[], active:{}, chairs:[firstChair], mode:'shared', history:[], noShowMinutes:5, autoSkip:false,
   services:[{id:'corte',name:'Corte',minutes:30},{id:'corte-barba',name:'Corte y barba',minutes:45},{id:'cejas',name:'Cejas',minutes:10}]
 };
+export function newShop(slug,name){return {...structuredClone(initial),slug,name};}
 export const clean = (v,n) => typeof v==='string' ? v.trim().slice(0,n+1) : '';
 export function phoneNumber(value) {
   const digits=clean(value,24).replace(/\D/g,'');
@@ -17,6 +19,7 @@ export const ticket = () => crypto.randomUUID().replaceAll('-','')+crypto.random
 const activeTickets=s=>Object.values(s.active);
 const allTickets=s=>[...s.queue,...activeTickets(s)];
 function normalize(s){
+  if(!s)return null;
   if(s.current){s.active[firstChair.id]??=s.current;s.current=null;}
   return s;
 }
@@ -40,13 +43,32 @@ function resolveNoShow(s,chairId,t,action){
     s.queue.push(waiting);
   }
 }
+const dayMs=86400000;
+function expirePersonal(s,now){
+  const old=s.queue.length;
+  s.queue=s.queue.filter(t=>t.joined>now-dayMs);
+  let changed=old!==s.queue.length;
+  for(const t of activeTickets(s)){
+    if((t.joined||0)<=now-dayMs&&(t.name||t.phone||t.token)){
+      t.name='';t.phone='';t.token='';changed=true;
+    }
+  }
+  const count=s.notices.length;
+  s.notices=s.notices.filter(n=>n.created>now-dayMs&&allTickets(s).some(t=>t.phone&&n.id.startsWith(t.id+':')));
+  return changed||count!==s.notices.length;
+}
+export async function maintain(repo,env){
+  const provider=new NotificationProvider(env);
+  await repo.sweep();
+  for(const slug of await repo.shops())await tick(repo.shop(slug),provider);
+}
 export async function tick(store,provider){
   for(let attempt=0;attempt<5;attempt++){
     const previous=await store.read();
     if(!previous)return null;
     const s=normalize(structuredClone(previous));
     const now=Date.now();
-    let changed=false;
+    let changed=expirePersonal(s,now);
     if(s.autoSkip)for(const [id,t] of Object.entries(s.active)){
       if(!t.started&&t.deadline<=now){resolveNoShow(s,id,t,'remove');changed=true;}
     }
@@ -59,28 +81,41 @@ export async function tick(store,provider){
   return normalize(await store.read());
 }
 function adminView(s,provider){
-  return {...s,notices:s.notices.filter(n=>n.status==='manual'||n.status==='pending'&&!provider.automatic||n.status==='sending'&&Date.now()-n.created>60000).map(n=>provider.present(n))};
+  const omitToken=({token,...t})=>t;
+  return {...s,queue:s.queue.map(omitToken),active:Object.fromEntries(Object.entries(s.active).map(([id,t])=>[id,omitToken(t)])),notices:s.notices.filter(n=>n.status==='manual'||n.status==='pending'&&!provider.automatic||n.status==='sending'&&Date.now()-n.created>60000).map(n=>provider.present(n))};
 }
-export async function route(request, store, key, env={}) {
+export async function route(request, repo, env={}, ip='unknown', defer) {
   const provider=new NotificationProvider(env);
-  const {pathname}=new URL(request.url);
+  const url=new URL(request.url),{pathname}=url;
+  if(request.method==='POST'&&request.headers.get('Origin')&&request.headers.get('Origin')!==url.origin)return fail('Origen no permitido.',403);
+  if(pathname==='/api/maintenance'){
+    if(request.method!=='POST'||!env.TURNO_MAINTENANCE_KEY||request.headers.get('Authorization')!=='Bearer '+env.TURNO_MAINTENANCE_KEY)return fail('Ruta no encontrada.',404);
+    await maintain(repo,env);return json({ok:true});
+  }
+  const auth=pathname.match(/^\/api\/auth\/(login|register|logout)$/);
+  if(auth)return authRoute(request,repo,env,ip,auth[1]);
   const match=pathname.match(/^\/api\/b\/([a-z0-9-]{1,48})\/(estado|fila)$/);
   const admin=pathname==='/api/agenda';
-  if(!match&&!admin) return fail('Ruta no encontrada.',404);
-  if(admin && (!key || request.headers.get('Authorization')!=='Bearer '+key)) return fail('Clave incorrecta.',401);
-  const token=request.headers.get('X-Turno-Token')||'';
+  if(!match&&!admin)return fail('Ruta no encontrada.',404);
+  const account=admin?await getAccount(request,repo):null;
+  if(admin&&!account)return fail('Entra a tu agenda primero.',401);
+  if(match&&!await allowed(repo,env,request,'public:'+match[1]+':'+request.method,request.method==='GET'?300:20,60000,ip))return fail('Demasiadas solicitudes. Intenta en un minuto.',429);
+  const store=repo.shop(account?.slug||match[1]);
+  const raw=request.headers.get('X-Turno-Token')||'';
+  const token=/^[a-f0-9]{64}$/.test(raw)?raw:'';
   if(request.method==='GET'){
     const s=await tick(store,provider);
-    if(match && match[1]!==s.slug) return fail('Barbería no encontrada.',404);
+    if(!s)return fail('Barbería no encontrada.',404);
     return json(admin?adminView(s,provider):publicView(s,token));
   }
-  if(request.method!=='POST'||(match&&match[2]!=='fila')) return fail('Método inválido.',405);
-  let input;
-  try{input=await request.json();}catch{return fail('Solicitud inválida.');}
-  if(!input||typeof input!=='object')return fail('Solicitud inválida.');
+  if(request.method!=='POST'||(match&&match[2]!=='fila'))return fail('Método inválido.',405);
+  const input=await parseBody(request);
+  if(!input)return fail('Solicitud inválida o demasiado larga.');
   for(let attempt=0;attempt<5;attempt++){
-    const previous=await store.read(), s=normalize(structuredClone(previous));
-    if(match && match[1]!==s.slug)return fail('Barbería no encontrada.',404);
+    const previous=await store.read();
+    if(!previous)return fail('Barbería no encontrada.',404);
+    const s=normalize(structuredClone(previous));
+    expirePersonal(s,Date.now());
     let resultToken=token;
     if((admin&&input.action==='add')||(!admin&&input.action==='join')){
       const name=clean(input.name,60), phone=phoneNumber(input.phone);
@@ -97,6 +132,12 @@ export async function route(request, store, key, env={}) {
     }else if(!admin && input.action==='leave'){
       if(!token||!s.queue.some(t=>t.token===token))return fail('Ese turno ya no está en espera.',409);
       s.queue=s.queue.filter(t=>t.token!==token);
+      resultToken='';
+    }else if(!admin&&input.action==='erase'){
+      if(!token)return fail('Abre el turno desde el equipo donde te anotaste.',403);
+      const t=activeTickets(s).find(v=>v.token===token);
+      if(t){t.name='';t.phone='';t.token='';}
+      s.queue=s.queue.filter(v=>v.token!==token);
       resultToken='';
     }else if(admin){
       switch(input.action){
@@ -155,10 +196,10 @@ export async function route(request, store, key, env={}) {
       }
     }else return fail('Acción desconocida.');
     refreshNotices(s);
-    s.notices=s.notices.filter(n=>allTickets(s).some(t=>n.id.startsWith(t.id+':')));
+    s.notices=s.notices.filter(n=>allTickets(s).some(t=>t.phone&&n.id.startsWith(t.id+':')));
     s.revision=previous.revision+1;
     if(await store.write(s,previous.revision)){
-      await dispatchNotices(store,provider);
+      if(defer&&provider.automatic)defer(dispatchNotices(store,provider));else await dispatchNotices(store,provider);
       return json(admin?adminView(await store.read(),provider):{...publicView(s,resultToken),token:resultToken});
     }
   }
