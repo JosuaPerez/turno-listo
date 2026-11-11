@@ -16,6 +16,7 @@ Fila web para barberías que atienden por llegada. El barbero abre el panel en e
 |---|---|
 | `PORT`, `TURNO_HOST`, `TURNO_DATA` | Puerto, interfaz de red y directorio SQLite del servidor local. Por defecto se escucha en 127.0.0.1:8787. |
 | `TURNO_INVITE` | Código de registro opcional para limitar quién puede crear barberías. |
+| `TURNO_PASSWORD_PEPPER` | Secreto aleatorio, estable y separado de D1. Obligatorio en el Worker. No lo cambies mientras existan cuentas que lo usan. |
 | `TURNO_RATE_SALT` | Valor aleatorio para derivar las claves del límite de peticiones. Configúralo en producción. |
 | `TURNO_MAINTENANCE_KEY` | Clave para invocar `POST /api/maintenance` con `Authorization: Bearer …` desde un planificador. |
 | `WA_ACCESS_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_API_VERSION` | Credenciales e identificador de un remitente de WhatsApp Business Cloud API y versión Graph (formato `vXX.X`). |
@@ -27,7 +28,7 @@ Sin credenciales de Meta se muestran enlaces de WhatsApp con el mensaje listo. E
 
 En Sites se usa el Worker de `dist/server/index.js` y un binding D1 llamado `DB`. Aplica las migraciones en orden y configura las variables como secretos. En otro despliegue de Cloudflare, vincula D1 y configura un Cron Trigger cada minuto para el handler `scheduled`. En un host sin Cron Triggers, programa una llamada HTTPS al endpoint de mantenimiento cada minuto. El servidor Node local ejecuta mantenimiento cada 30 segundos. La versión desplegada también revisa la cola cuando alguien consulta la página. El planificador hace que la limpieza y los avisos ocurran aunque no haya nadie conectado.
 
-Al actualizar la demo anterior se descarta su fila de ejemplo y se crea una cuenta desde el panel. Cada barbería tiene un enlace `/b/su-nombre` y su cuenta usa correo y contraseña. La contraseña se guarda con PBKDF2-SHA256, sal aleatoria y 600 000 iteraciones. Las sesiones caducan a los siete días.
+Al actualizar la demo anterior se descarta su fila de ejemplo y se crea una cuenta desde el panel. Cada barbería tiene un enlace `/b/su-nombre` y su cuenta usa correo y contraseña. La contraseña se guarda con PBKDF2-SHA256 y sal aleatoria. Node local usa 600 000 iteraciones sin secreto adicional. El Worker usa HMAC-SHA256 con un secreto del servidor antes de PBKDF2 con 100 000 iteraciones, el límite de su entorno. Las sesiones caducan a los siete días.
 
 ## Decisiones del MVP
 

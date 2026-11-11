@@ -9,6 +9,7 @@ export default {
     const path=new URL(request.url).pathname;
     if(Object.hasOwn(assets,path))return new Response(assets[path],{headers:{'Content-Type':'text/javascript; charset=utf-8'}});
     if(path==='/'||path==='/barbero'||/^\/b\/[a-z0-9-]+$/.test(path))return new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
+    if(path.startsWith('/api/auth/')&&path!=='/api/auth/logout'&&!env.TURNO_PASSWORD_PEPPER)return fail('El inicio de sesión no está configurado.',503);
     return route(request,repository(env.DB),env,request.headers.get('CF-Connecting-IP')||'unknown',ctx.waitUntil.bind(ctx));
   },
   scheduled(controller,env,ctx){ctx.waitUntil(maintain(repository(env.DB),env));}

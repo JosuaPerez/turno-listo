@@ -6,7 +6,7 @@ import {route,newShop} from '../api.mjs';
 import {localRepository} from '../local-db.mjs';
 import {predict,range,serviceMinutes} from '../estimates.mjs';
 import {validHours,reception,summarize} from '../stats.mjs';
-import {makePassword} from '../auth.mjs';
+import {makePassword,verifyPassword} from '../auth.mjs';
 
 test('calcula en paralelo, limita la espera a su fila y aprende tras tres cortes',()=>{
  const now=Date.now(),s=newShop('prueba','Prueba');
@@ -23,6 +23,16 @@ test('calcula en paralelo, limita la espera a su fila y aprende tras tres cortes
  s.history.push({chairId:'dos',serviceId:'corte',outcome:'served',minutes:25});
  assert.equal(serviceMinutes(s,'corte','dos',30),20);
  assert.equal(serviceMinutes(s,'corte','principal',30),30);
+});
+
+test('hash de Cloudflare usa un secreto separado y mantiene compatibilidad local',async()=>{
+ const password='clave larga de prueba';
+ const v2=await makePassword(password,'pepper-de-prueba');
+ assert.match(v2,/^v2:/);
+ assert.equal(await verifyPassword(password,v2,'pepper-de-prueba'),true);
+ assert.equal(await verifyPassword(password,v2,'otro-pepper'),false);
+ const local=await makePassword(password);
+ assert.equal(await verifyPassword(password,local,'otro-pepper'),true);
 });
 
 test('horario y resumen usan el día local de Santo Domingo',()=>{

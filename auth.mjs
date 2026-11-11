@@ -6,17 +6,24 @@ const fromHex=value=>Uint8Array.from(value.match(/../g).map(v=>parseInt(v,16)));
 export const digest=async value=>hex(await crypto.subtle.digest('SHA-256',encoder.encode(value)));
 export const slugPattern=/^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const emailPattern=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-async function passwordHash(password,salt){
-  const key=await crypto.subtle.importKey('raw',encoder.encode(password),'PBKDF2',false,['deriveBits']);
-  return hex(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:fromHex(salt),iterations:600000},key,256));
+async function passwordHash(password,salt,pepper=''){
+  let material=encoder.encode(password);
+  if(pepper){
+    const secret=await crypto.subtle.importKey('raw',encoder.encode(pepper),{name:'HMAC',hash:'SHA-256'},false,['sign']);
+    material=await crypto.subtle.sign('HMAC',secret,material);
+  }
+  const key=await crypto.subtle.importKey('raw',material,'PBKDF2',false,['deriveBits']);
+  return hex(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:fromHex(salt),iterations:pepper?100000:600000},key,256));
 }
-export async function makePassword(password){
+export async function makePassword(password,pepper=''){
   const salt=hex(bytes(16));
-  return salt+':'+await passwordHash(password,salt);
+  return (pepper?'v2:':'')+salt+':'+await passwordHash(password,salt,pepper);
 }
-export async function verifyPassword(password,stored){
-  const [salt,expected]=(stored||'00000000000000000000000000000000:'+('0'.repeat(64))).split(':');
-  const actual=await passwordHash(password,salt);
+export async function verifyPassword(password,stored,pepper=''){
+  const versioned=stored?.startsWith('v2:')??Boolean(pepper);
+  if(versioned&&!pepper)return false;
+  const [salt,expected]=(stored?.replace(/^v2:/,'')||'00000000000000000000000000000000:'+('0'.repeat(64))).split(':');
+  const actual=await passwordHash(password,salt,versioned?pepper:'');
   let diff=0;
   for(let i=0;i<expected.length;i++)diff|=expected.charCodeAt(i)^actual.charCodeAt(i);
   return Boolean(stored)&&diff===0;
@@ -73,12 +80,12 @@ export async function authRoute(request,repo,env,ip,path){
     const slug=clean(data.slug,48), name=clean(data.name,60);
     if(env.TURNO_INVITE && data.invite!==env.TURNO_INVITE)return fail('El código de registro no es válido.',403);
     if(password.length<12||!slugPattern.test(slug)||slug.length>48||!name||name.length>60)return fail('Usa un nombre, una dirección válida y una contraseña de 12 caracteres o más.');
-    const inserted=await repo.createAccount({slug,email,hash:await makePassword(password)},newShop(slug,name));
+    const inserted=await repo.createAccount({slug,email,hash:await makePassword(password,env.TURNO_PASSWORD_PEPPER)},newShop(slug,name));
     if(!inserted)return fail('Ese enlace o correo ya está en uso.',409);
     account={slug};
   }else{
     account=await repo.account(email);
-    if(!await verifyPassword(password,account?.password_hash))return fail('Correo o contraseña incorrectos.',401);
+    if(!await verifyPassword(password,account?.password_hash,env.TURNO_PASSWORD_PEPPER))return fail('Correo o contraseña incorrectos.',401);
   }
   const token=hex(bytes(32));
   await repo.createSession(await digest(token),account.slug,Date.now()+sessionLife*1000);
