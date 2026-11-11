@@ -39,23 +39,37 @@ function field(label,value,type='text',required=true){
  const el=element('label',label),input=document.createElement('input');
  input.type=type;input.value=value??'';input.required=required;el.append(input);return [el,input];
 }
-function addChair(name=''){
- const row=element('div',null,'row'),[label,input]=field('Nombre del sillón',name);
+function addChair(chair={}){
+ const row=element('div',null,'row'),[label,input]=field('Nombre del sillón',chair.name);row.dataset.id=chair.id||'';
  input.maxLength=35;row.append(label,button('Quitar sillón',()=>row.remove(),true));$('chairSettings').append(row);
 }
 function addService(service={}){
  const row=element('fieldset',null,'card'),[name,n]=field('Servicio',service.name),[time,t]=field('Minutos',service.minutes??30,'number'),[price,p]=field('Precio RD$ (opcional)',service.price,'number',false);
+ row.dataset.id=service.id||'';
  n.maxLength=45;t.min=5;t.max=180;p.min=0;p.max=100000;p.step='.01';
  row.append(name,time,price,button('Quitar servicio',()=>row.remove(),true));$('serviceSettings').append(row);
 }
 function settings(s){
- const form=$('settings');form.elements.phone.value=s.phone;form.elements.mode.value=s.mode;
+ const form=$('settings');form.elements.name.value=s.name;form.elements.phone.value=s.phone;form.elements.mode.value=s.mode;
  form.elements.noShowMinutes.value=s.noShowMinutes;form.elements.autoSkip.checked=s.autoSkip;
- $('chairSettings').replaceChildren();s.chairs.forEach(c=>addChair(c.name));
+ $('chairSettings').replaceChildren();s.chairs.forEach(addChair);
  $('serviceSettings').replaceChildren();s.services.forEach(addService);
+ form.elements.hoursEnabled.checked=s.hours.enabled;form.elements.hoursFrom.value=s.hours.from;form.elements.hoursTo.value=s.hours.to;
+ const days=$('hoursDays');days.querySelectorAll('label').forEach(v=>v.remove());
+ weekdays.forEach((day,i)=>{
+   const label=element('label',null,'consent'),input=document.createElement('input');
+   input.type='checkbox';input.name='day';input.value=i;input.checked=s.hours.days.includes(i);
+   label.append(input,element('span',day));days.append(label);
+ });
 }
+const weekdays=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+function priceLabel(v){return v.price==null?'':money.format(v.price);}
 function publicRender(s){
- msg('shopName',s.name+' · Santo Domingo');
+ document.title=s.name+' · Turno Listo';msg('shopName',s.name);
+ msg('publicHours',s.hours.enabled?s.hours.days.map(d=>weekdays[d]).join(', ')+' · '+s.hours.from+' a '+s.hours.to:'Consulta la disponibilidad de hoy en la fila.');
+ $('publicServices').replaceChildren(...s.services.map(v=>{
+   const li=element('li',null,'row');li.append(element('span',v.name+' · '+v.minutes+' min'),element('strong',priceLabel(v)));return li;
+ }));
  const occupied=s.busy||s.waiting>0;
  msg('tag',!s.open?'Pausada':occupied?'Atendiendo':'Disponible');
  msg('headline',!s.open?'Por ahora no recibimos turnos':occupied?'Hay gente en turno':'Puedes pasar');
@@ -100,7 +114,7 @@ function renderQr(slug){
 }
 function render(s){
  state=s;$('login').hidden=true;$('registerCard').hidden=true;$('controls').hidden=false;
- msg('adminName',s.name);msg('shop',s.open?'Recibiendo turnos':'Recepción pausada');
+ msg('adminName',s.name);msg('shop',s.receiving?'Recibiendo turnos':s.open?'Fuera de horario':'Recepción pausada');
  msg('toggle',s.open?'Pausar recepción':'Reabrir recepción');
  $('chairs').replaceChildren(...s.chairs.map(chair=>{
    const t=s.active[chair.id], card=element('div',null,'card');
@@ -135,6 +149,12 @@ function render(s){
    notices.append(row);
  }
  $('noticeCard').hidden=!s.notices.length;
+ const st=s.stats;
+ $('stats').replaceChildren(element('p','Atendidos hoy: '+st.today+' · Esta semana: '+st.week),
+   element('p','Ausencias: '+st.noShows+' · Salieron de la fila: '+st.exits),
+   element('p','Hora pico: '+(st.peakHour||'Por calcular')),
+   ...st.services.map(v=>element('p',v.name+' · '+(v.avg==null?'Sin cortes registrados':v.avg+' min en promedio')+' · '+v.count+' atendidos')));
+ $('statsWa').href='https://wa.me/?text='+encodeURIComponent(st.message);
  renderQr(s.slug);
 }
 function refreshTimers(){
@@ -146,7 +166,7 @@ function refreshTimers(){
 async function refreshAdmin(){
  if(!state||pending)return;
  pending=true;
- try{const s=await api(adminPath);if(s.revision!==state.revision)render(s);}
+ try{const s=await api(adminPath);if(s.revision!==state.revision||s.receiving!==state.receiving||s.stats.message!==state.stats.message)render(s);}
  catch{}
  finally{pending=false;}
 }
@@ -179,11 +199,14 @@ if(admin){
  $('addService').onclick=()=>addService();
  $('settings').onsubmit=async e=>{
    e.preventDefault();
-   const chairs=[...$('chairSettings').querySelectorAll('input')].map(v=>v.value);
-   const services=[...$('serviceSettings').children].map(row=>{const [name,minutes,price]=row.querySelectorAll('input');return {name:name.value,minutes:minutes.value,price:price.value};});
-   if(await change('settings',{...values($('settings')),chairs,services,autoSkip:$('settings').elements.autoSkip.checked})){settings(state);msg('shareStatus','Ajustes guardados.');}
+   const chairs=[...$('chairSettings').children].map(row=>({id:row.dataset.id,name:row.querySelector('input').value}));
+   const services=[...$('serviceSettings').children].map(row=>{const [name,minutes,price]=row.querySelectorAll('input');return {id:row.dataset.id,name:name.value,minutes:minutes.value,price:price.value};});
+   const form=$('settings'), f=form.elements;
+   const hours={enabled:f.hoursEnabled.checked,from:f.hoursFrom.value,to:f.hoursTo.value,days:[...form.querySelectorAll('input[name=day]:checked')].map(v=>Number(v.value))};
+   if(await change('settings',{...values(form),chairs,services,hours,autoSkip:f.autoSkip.checked})){settings(state);msg('shareStatus','Ajustes guardados.');}
  };
  $('logout').onclick=async()=>{try{await api('/api/auth/logout',{});location.reload();}catch(e){msg('error',e.message);}};
+ $('copyStats').onclick=async()=>{try{await navigator.clipboard.writeText(state.stats.message);msg('statsStatus','Resumen copiado.');}catch{msg('statsStatus',state.stats.message);}};
  $('copyLink').onclick=async()=>{const link=$('customerLink').href;try{await navigator.clipboard.writeText(link);msg('shareStatus','Enlace copiado.');}catch{msg('shareStatus',link);}};
  enter();
  setInterval(refreshTimers,1000);setInterval(refreshAdmin,5000);

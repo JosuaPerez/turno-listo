@@ -1,3 +1,4 @@
+import {initial} from './api.mjs';
 export function repository(db){
   const stmt=(sql,...params)=>db.prepare(sql).bind(...params);
   return {

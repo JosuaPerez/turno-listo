@@ -1,3 +1,4 @@
+import {clean,fail,json,newShop} from './api.mjs';
 const encoder=new TextEncoder();
 const hex=bytes=>Array.from(new Uint8Array(bytes),v=>v.toString(16).padStart(2,'0')).join('');
 const bytes=length=>crypto.getRandomValues(new Uint8Array(length));

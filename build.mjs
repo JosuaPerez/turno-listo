@@ -1,7 +1,7 @@
 import {mkdirSync,readFileSync,writeFileSync,copyFileSync} from 'node:fs';
 const html=JSON.stringify(readFileSync('index.html','utf8'));
 const assets=JSON.stringify({'/assets/app.js':readFileSync('app.js','utf8'),'/assets/qrcode.js':readFileSync('vendor/qrcode.js','utf8')});
-const modules=['estimates','notifications','auth','repository','api'];
+const modules=['estimates','notifications','auth','repository','stats','api'];
 const api=modules.map(name=>readFileSync(name+'.mjs','utf8').replace(/^import .*\n/gm,'')).join('\n');
 const worker='const html='+html+', assets='+assets+';\n'+String.raw`
 export default {
