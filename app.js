@@ -89,6 +89,15 @@ function render(s){
  }));
  if(!s.queue.length)$('queue').append(element('li','Nadie en espera.','quiet'));
  setOptions($('add').elements.serviceId,s.services.map(v=>[v.id,v.name]));
+ const notices=$('notices');notices.replaceChildren();
+ for(const n of s.notices){
+   const row=element('li',null,'row');
+   const label=n.kind==='soon'?'Avisar que vaya saliendo':'Avisar que ya le toca';
+   const a=element('a',label,'btn');a.href=n.url;a.target='_blank';a.rel='noopener';
+   row.append(element('span',n.name),a,button('Marcar enviado',()=>change('notice-done',{id:n.id}),true));
+   notices.append(row);
+ }
+ $('noticeCard').hidden=!s.notices.length;
  renderQr(s.slug);
 }
 async function enter(){

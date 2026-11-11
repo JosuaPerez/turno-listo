@@ -1,6 +1,7 @@
+import {NotificationProvider,enqueueNotice,dispatchNotices} from './notifications.mjs';
 export const initial = {
   open:true, phone:'', name:'Barbería Turno Listo', slug:'turno-listo',
-  duration:30, queue:[], current:null,
+  duration:30, queue:[], current:null, notices:[],
   services:[{id:'corte',name:'Corte',minutes:30},{id:'corte-barba',name:'Corte y barba',minutes:45},{id:'cejas',name:'Cejas',minutes:10}]
 };
 export const clean = (v,n) => typeof v==='string' ? v.trim().slice(0,n+1) : '';
@@ -22,7 +23,16 @@ function publicView(s,token) {
     token&&s.current?.token===token?{status:'serving'}:null;
   return {name:s.name,slug:s.slug,services:s.services,open:s.open,busy:!!s.current,waiting:s.queue.length,minutes:queueWait(s,s.queue.length),phone:s.phone,own};
 }
-export async function route(request, store, key) {
+function refreshNotices(s){
+  if(s.open)s.queue.forEach((t,i)=>{
+    if(i<2||queueWait(s,i)<=15)enqueueNotice(s,t,'soon');
+  });
+}
+function adminView(s,provider){
+  return {...s,notices:s.notices.filter(n=>n.status==='manual'||n.status==='pending'&&!provider.automatic||n.status==='sending'&&Date.now()-n.created>60000).map(n=>provider.present(n))};
+}
+export async function route(request, store, key, env={}) {
+  const provider=new NotificationProvider(env);
   const {pathname}=new URL(request.url);
   const match=pathname.match(/^\/api\/b\/([a-z0-9-]{1,48})\/(estado|fila)$/);
   const admin=pathname==='/api/agenda';
@@ -32,7 +42,7 @@ export async function route(request, store, key) {
   if(request.method==='GET'){
     const s=await store.read();
     if(match && match[1]!==s.slug) return fail('Barbería no encontrada.',404);
-    return json(admin?s:publicView(s,token));
+    return json(admin?adminView(s,provider):publicView(s,token));
   }
   if(request.method!=='POST'||(match&&match[2]!=='fila')) return fail('Método inválido.',405);
   let input;
@@ -61,13 +71,20 @@ export async function route(request, store, key) {
         case 'toggle':s.open=!s.open;break;
         case 'next':
           if(s.current||!s.queue.length)return fail('Termina el turno actual o agrega a alguien.',409);
-          s.current={...s.queue.shift(),started:Date.now()};break;
+          s.current={...s.queue.shift(),started:Date.now()};
+          s.notices=s.notices.filter(n=>n.id!==s.current.id+':soon'||n.status==='sent');
+          enqueueNotice(s,s.current,'called');break;
         case 'finish':
           if(!s.current||s.current.id!==input.id)return fail('El turno cambió. Actualiza la agenda.',409);
           s.current=null;break;
         case 'remove':
           if(!s.queue.some(t=>t.id===input.id))return fail('Ese turno ya no está en espera.',409);
           s.queue=s.queue.filter(t=>t.id!==input.id);break;
+        case 'notice-done': {
+          const n=s.notices.find(n=>n.id===input.id);
+          if(n)n.status='sent';
+          break;
+        }
         case 'settings': {
           const phone=phoneNumber(input.phone);
           if(input.phone&&!phone)return fail('Escribe un WhatsApp dominicano válido.');
@@ -76,8 +93,13 @@ export async function route(request, store, key) {
         default:return fail('Acción desconocida.');
       }
     }else return fail('Acción desconocida.');
+    refreshNotices(s);
+    s.notices=s.notices.filter(n=>[...s.queue,s.current].some(t=>t && n.id.startsWith(t.id+':')));
     s.revision=previous.revision+1;
-    if(await store.write(s,previous.revision))return json(admin?s:{...publicView(s,resultToken),token:resultToken});
+    if(await store.write(s,previous.revision)){
+      await dispatchNotices(store,provider);
+      return json(admin?adminView(await store.read(),provider):{...publicView(s,resultToken),token:resultToken});
+    }
   }
   return fail('La fila cambió. Intenta de nuevo.',409);
 }

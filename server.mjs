@@ -39,7 +39,7 @@ createServer(async (req,res)=>{
       if(size>8192){res.writeHead(413);res.end();return;}
       chunks.push(chunk);
     }
-    const response=await route(new Request(url,{method:req.method,headers:req.headers,body:size?Buffer.concat(chunks):undefined}),store,key);
+    const response=await route(new Request(url,{method:req.method,headers:req.headers,body:size?Buffer.concat(chunks):undefined}),store,key,process.env);
     res.writeHead(response.status,Object.fromEntries(response.headers)); res.end(Buffer.from(await response.arrayBuffer()));
   } catch(error) { console.error(error.message); res.writeHead(500); res.end('Error interno.'); }
 }).listen(port,host,()=>{

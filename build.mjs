@@ -1,7 +1,7 @@
 import {mkdirSync,readFileSync,writeFileSync,copyFileSync} from 'node:fs';
 const html=JSON.stringify(readFileSync('index.html','utf8'));
 const assets=JSON.stringify({'/assets/app.js':readFileSync('app.js','utf8'),'/assets/qrcode.js':readFileSync('vendor/qrcode.js','utf8')});
-const api=readFileSync('api.mjs','utf8');
+const api=readFileSync('notifications.mjs','utf8')+'\n'+readFileSync('api.mjs','utf8').replace(/^import .*\n/gm,'');
 const worker=`
 const html=${html}, assets=${assets};
 export default {async fetch(request,env) {
@@ -18,7 +18,7 @@ export default {async fetch(request,env) {
       return result.meta.changes===1;
     }
   };
-  return route(request,store,env.TURNO_KEY);
+  return route(request,store,env.TURNO_KEY,env);
 }};
 `;
 mkdirSync('dist/server',{recursive:true});
