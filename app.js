@@ -29,18 +29,42 @@ function setOptions(select,options){
  select.replaceChildren(...options.map(([id,label])=>new Option(label,id)));
  if(options.some(([id])=>id===selected))select.value=selected;
 }
-const waitLabel=minutes=>minutes===0?'Sin espera':minutes+' min';
+const waitLabel=([min,max])=>max===0?'Sin espera':min+' a '+max+' min';
+const money=new Intl.NumberFormat('es-DO',{style:'currency',currency:'DOP',maximumFractionDigits:2});
+function bookingOptions(form,s){
+ setOptions(form.elements.serviceId,s.services.map(v=>[v.id,v.name+' · '+v.minutes+' min'+(v.price==null?'':' · '+money.format(v.price))]));
+ setOptions(form.elements.chairId,s.chairs.map(v=>[v.id,v.name]));
+ form.querySelector('.chairField').hidden=s.mode!=='individual';
+}
+function field(label,value,type='text',required=true){
+ const el=element('label',label),input=document.createElement('input');
+ input.type=type;input.value=value??'';input.required=required;el.append(input);return [el,input];
+}
+function addChair(name=''){
+ const row=element('div',null,'row'),[label,input]=field('Nombre del sillón',name);
+ input.maxLength=35;row.append(label,button('Quitar sillón',()=>row.remove(),true));$('chairSettings').append(row);
+}
+function addService(service={}){
+ const row=element('fieldset',null,'card'),[name,n]=field('Servicio',service.name),[time,t]=field('Minutos',service.minutes??30,'number'),[price,p]=field('Precio RD$ (opcional)',service.price,'number',false);
+ n.maxLength=45;t.min=5;t.max=180;p.min=0;p.max=100000;p.step='.01';
+ row.append(name,time,price,button('Quitar servicio',()=>row.remove(),true));$('serviceSettings').append(row);
+}
+function settings(s){
+ const form=$('settings');form.elements.phone.value=s.phone;form.elements.mode.value=s.mode;
+ $('chairSettings').replaceChildren();s.chairs.forEach(c=>addChair(c.name));
+ $('serviceSettings').replaceChildren();s.services.forEach(addService);
+}
 function publicRender(s){
  msg('shopName',s.name+' · Santo Domingo');
  const occupied=s.busy||s.waiting>0;
  msg('tag',!s.open?'Pausada':occupied?'Atendiendo':'Disponible');
  msg('headline',!s.open?'Por ahora no recibimos turnos':occupied?'Hay gente en turno':'Puedes pasar');
  msg('detail',!s.open?'Consulta más tarde o escríbenos por WhatsApp.':occupied?'Anótate y consulta tu posición desde aquí.':'Ahora mismo no hay nadie en la fila.');
- msg('count',s.waiting);msg('estimate',s.open?waitLabel(s.minutes):'—');
+ msg('count',s.waiting);msg('estimate',s.open?waitLabel(s.range):'—');
  $('join').hidden=!s.open||!!s.own;
- setOptions($('join').elements.serviceId,s.services.map(v=>[v.id,v.name]));
+ bookingOptions($('join'),s);
  $('own').hidden=!s.own;
- if(s.own)msg('ownText',s.own.status==='waiting'?'Posición '+s.own.position+' · '+waitLabel(s.own.minutes):'Ya estás en el sillón.');
+ if(s.own)msg('ownText',s.own.status==='waiting'?'Posición '+s.own.position+' · '+waitLabel(s.own.range):'Ya estás en el sillón.');
  $('leave').hidden=s.own?.status!=='waiting';
  $('wa').hidden=!s.phone;
  if(s.phone)$('wa').href='https://wa.me/'+s.phone+'?text='+encodeURIComponent('Hola, vi la fila de la barbería. ¿Puedo pasar?');
@@ -78,17 +102,20 @@ function render(s){
  state=s;$('login').hidden=true;$('controls').hidden=false;
  msg('adminName',s.name);msg('shop',s.open?'Recibiendo turnos':'Recepción pausada');
  msg('toggle',s.open?'Pausar recepción':'Reabrir recepción');
- const card=element('div',null,'card');
- card.append(element('h2','En el sillón'),element('p',s.current?s.current.name:'Sillón libre'));
- const next=button('Llamar al siguiente',()=>change('next'));next.disabled=!!s.current||!s.queue.length;
- card.append(s.current?button('Terminar turno',()=>change('finish',{id:s.current.id})):next);
- $('chairs').replaceChildren(card);
+ $('chairs').replaceChildren(...s.chairs.map(chair=>{
+   const t=s.active[chair.id], card=element('div',null,'card');
+   card.append(element('h2',chair.name),element('p',t?t.name:'Sillón libre'));
+   const next=button('Llamar al siguiente',()=>change('next',{chairId:chair.id}));
+   next.disabled=!s.queue.some(v=>s.mode==='shared'||v.chairId===chair.id);
+   card.append(t?button('Terminar turno',()=>change('finish',{id:t.id,chairId:chair.id})):next);
+   return card;
+ }));
  msg('queueHeading','En espera ('+s.queue.length+')');
  $('queue').replaceChildren(...s.queue.map((t,i)=>{
    const li=element('li',null,'row');li.append(element('span',(i+1)+'. '+t.name+' · '+t.minutes+' min'),button('Quitar',()=>change('remove',{id:t.id}),true));return li;
  }));
  if(!s.queue.length)$('queue').append(element('li','Nadie en espera.','quiet'));
- setOptions($('add').elements.serviceId,s.services.map(v=>[v.id,v.name]));
+ bookingOptions($('add'),s);
  const notices=$('notices');notices.replaceChildren();
  for(const n of s.notices){
    const row=element('li',null,'row');
@@ -101,7 +128,7 @@ function render(s){
  renderQr(s.slug);
 }
 async function enter(){
- try{const s=await api(adminPath);render(s);$('settings').elements.phone.value=s.phone;sessionStorage.setItem('turno-key',key);$('login').reset();msg('error');}
+ try{const s=await api(adminPath);render(s);settings(s);sessionStorage.setItem('turno-key',key);$('login').reset();msg('error');}
  catch(e){msg('error',e.message);}
 }
 async function change(action,fields={}){
@@ -116,7 +143,14 @@ if(admin){
  $('login').onsubmit=e=>{e.preventDefault();key=values($('login')).password.trim();enter();};
  $('toggle').onclick=()=>change('toggle');
  $('add').onsubmit=async e=>{e.preventDefault();if(await change('add',values($('add'))))$('add').reset();};
- $('settings').onsubmit=async e=>{e.preventDefault();if(await change('settings',values($('settings'))))msg('shareStatus','Ajustes guardados.');};
+ $('addChair').onclick=()=>addChair();
+ $('addService').onclick=()=>addService();
+ $('settings').onsubmit=async e=>{
+   e.preventDefault();
+   const chairs=[...$('chairSettings').querySelectorAll('input')].map(v=>v.value);
+   const services=[...$('serviceSettings').children].map(row=>{const [name,minutes,price]=row.querySelectorAll('input');return {name:name.value,minutes:minutes.value,price:price.value};});
+   if(await change('settings',{...values($('settings')),chairs,services})){settings(state);msg('shareStatus','Ajustes guardados.');}
+ };
  $('logout').onclick=()=>{sessionStorage.removeItem('turno-key');location.reload();};
  $('copyLink').onclick=async()=>{const link=$('customerLink').href;try{await navigator.clipboard.writeText(link);msg('shareStatus','Enlace copiado.');}catch{msg('shareStatus',link);}};
  if(key)enter();

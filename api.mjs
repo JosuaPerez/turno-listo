@@ -1,7 +1,8 @@
 import {NotificationProvider,enqueueNotice,dispatchNotices} from './notifications.mjs';
+import {firstChair,chairAccepts,nextFor,serviceMinutes,range,predict,record} from './estimates.mjs';
 export const initial = {
   open:true, phone:'', name:'Barbería Turno Listo', slug:'turno-listo',
-  duration:30, queue:[], current:null, notices:[],
+  duration:30, queue:[], current:null, notices:[], active:{}, chairs:[firstChair], mode:'shared', history:[],
   services:[{id:'corte',name:'Corte',minutes:30},{id:'corte-barba',name:'Corte y barba',minutes:45},{id:'cejas',name:'Cejas',minutes:10}]
 };
 export const clean = (v,n) => typeof v==='string' ? v.trim().slice(0,n+1) : '';
@@ -13,19 +14,21 @@ export function phoneNumber(value) {
 export const json = (value,status=200,headers={}) => Response.json(value,{status,headers:{'Cache-Control':'no-store',...headers}});
 export const fail = (error,status=400) => json({error},status);
 export const ticket = () => crypto.randomUUID().replaceAll('-','')+crypto.randomUUID().replaceAll('-','');
-const queueWait = (s, count) => {
-  const left = s.current ? Math.max(0, Math.ceil((s.current.started+s.current.minutes*60000-Date.now())/60000)) : 0;
-  return left+s.queue.slice(0,count).reduce((sum,t)=>sum+t.minutes,0);
-};
-function publicView(s,token) {
-  const i=token?s.queue.findIndex(t=>t.token===token):-1;
-  const own=i>=0?{position:i+1,minutes:queueWait(s,i),status:'waiting'}:
-    token&&s.current?.token===token?{status:'serving'}:null;
-  return {name:s.name,slug:s.slug,services:s.services,open:s.open,busy:!!s.current,waiting:s.queue.length,minutes:queueWait(s,s.queue.length),phone:s.phone,own};
+const activeTickets=s=>Object.values(s.active);
+const allTickets=s=>[...s.queue,...activeTickets(s)];
+function normalize(s){
+  if(s.current){s.active[firstChair.id]??=s.current;s.current=null;}
+  return s;
+}
+function publicView(s,token){
+  const t=token?s.queue.find(t=>t.token===token):null;
+  const active=token?activeTickets(s).find(t=>t.token===token):null;
+  const own=t?{position:s.queue.filter(v=>s.mode==='shared'||v.chairId===t.chairId).indexOf(t)+1,range:range(predict(s,t)),status:'waiting'}:active?{status:'serving'}:null;
+  return {name:s.name,slug:s.slug,services:s.services,chairs:s.chairs,mode:s.mode,open:s.open,busy:!!activeTickets(s).length,waiting:s.queue.length,range:range(predict(s)),phone:s.phone,own};
 }
 function refreshNotices(s){
   if(s.open)s.queue.forEach((t,i)=>{
-    if(i<2||queueWait(s,i)<=15)enqueueNotice(s,t,'soon');
+    if((s.mode==='shared'?i:s.queue.filter(v=>v.chairId===t.chairId).indexOf(t))<2||predict(s,t)<=15)enqueueNotice(s,t,'soon');
   });
 }
 function adminView(s,provider){
@@ -40,7 +43,7 @@ export async function route(request, store, key, env={}) {
   if(admin && (!key || request.headers.get('Authorization')!=='Bearer '+key)) return fail('Clave incorrecta.',401);
   const token=request.headers.get('X-Turno-Token')||'';
   if(request.method==='GET'){
-    const s=await store.read();
+    const s=normalize(await store.read());
     if(match && match[1]!==s.slug) return fail('Barbería no encontrada.',404);
     return json(admin?adminView(s,provider):publicView(s,token));
   }
@@ -49,19 +52,21 @@ export async function route(request, store, key, env={}) {
   try{input=await request.json();}catch{return fail('Solicitud inválida.');}
   if(!input||typeof input!=='object')return fail('Solicitud inválida.');
   for(let attempt=0;attempt<5;attempt++){
-    const previous=await store.read(), s=structuredClone(previous);
+    const previous=await store.read(), s=normalize(structuredClone(previous));
     if(match && match[1]!==s.slug)return fail('Barbería no encontrada.',404);
     let resultToken=token;
     if((admin&&input.action==='add')||(!admin&&input.action==='join')){
       const name=clean(input.name,60), phone=phoneNumber(input.phone);
       const service=s.services.find(v=>v.id===input.serviceId);
       const minutes=service?.minutes;
+      const chairId=s.mode==='individual'?input.chairId:null;
+      if(s.mode==='individual'&&!s.chairs.some(c=>c.id===chairId))return fail('Selecciona un barbero.');
       if(!name||name.length>60||!minutes||((!admin||input.phone)&&!phone))return fail('Revisa el nombre, el WhatsApp y el servicio.');
       if(!admin&&(!s.open||input.consent!==true))return fail('La fila está cerrada o falta aceptar el aviso.',409);
       if(s.queue.length>=30)return fail('La fila está llena por ahora.',409);
-      if(phone&&[...s.queue,s.current].some(t=>t?.phone===phone))return fail('Ese WhatsApp ya tiene un turno activo.',409);
+      if(phone&&allTickets(s).some(t=>t.phone===phone))return fail('Ese WhatsApp ya tiene un turno activo.',409);
       resultToken=ticket();
-      s.queue.push({id:crypto.randomUUID(),token:resultToken,name,phone,minutes,serviceId:service.id,joined:Date.now()});
+      s.queue.push({id:crypto.randomUUID(),token:resultToken,name,phone,minutes,chairId,serviceId:service.id,joined:Date.now()});
     }else if(!admin && input.action==='leave'){
       if(!token||!s.queue.some(t=>t.token===token))return fail('Ese turno ya no está en espera.',409);
       s.queue=s.queue.filter(t=>t.token!==token);
@@ -69,14 +74,21 @@ export async function route(request, store, key, env={}) {
     }else if(admin){
       switch(input.action){
         case 'toggle':s.open=!s.open;break;
-        case 'next':
-          if(s.current||!s.queue.length)return fail('Termina el turno actual o agrega a alguien.',409);
-          s.current={...s.queue.shift(),started:Date.now()};
-          s.notices=s.notices.filter(n=>n.id!==s.current.id+':soon'||n.status==='sent');
-          enqueueNotice(s,s.current,'called');break;
-        case 'finish':
-          if(!s.current||s.current.id!==input.id)return fail('El turno cambió. Actualiza la agenda.',409);
-          s.current=null;break;
+        case 'next': {
+          const chair=s.chairs.find(c=>c.id===input.chairId);
+          const t=chair&&nextFor(s,chair);
+          if(!t||s.active[chair.id])return fail('El sillón está ocupado o no hay turnos.',409);
+          s.queue=s.queue.filter(v=>v.id!==t.id);
+          s.active[chair.id]={...t,minutes:serviceMinutes(s,t.serviceId,chair.id,t.minutes),started:Date.now()};
+          s.notices=s.notices.filter(n=>n.id!==t.id+':soon'||n.status==='sent');
+          enqueueNotice(s,t,'called');break;
+        }
+        case 'finish': {
+          const t=s.active[input.chairId];
+          if(!t||t.id!==input.id)return fail('El turno cambió. Actualiza la agenda.',409);
+          record(s,t,input.chairId,'served');
+          delete s.active[input.chairId];break;
+        }
         case 'remove':
           if(!s.queue.some(t=>t.id===input.id))return fail('Ese turno ya no está en espera.',409);
           s.queue=s.queue.filter(t=>t.id!==input.id);break;
@@ -88,13 +100,21 @@ export async function route(request, store, key, env={}) {
         case 'settings': {
           const phone=phoneNumber(input.phone);
           if(input.phone&&!phone)return fail('Escribe un WhatsApp dominicano válido.');
-          s.phone=phone;break;
+          const services=Array.isArray(input.services)?input.services.map((v,i)=>({
+            id:s.services[i]?.id||crypto.randomUUID(),name:clean(v?.name,45),minutes:Number(v?.minutes),
+            price:v?.price===''||v?.price==null?null:Number(v.price)
+          })):[];
+          const chairs=Array.isArray(input.chairs)?input.chairs.map((v,i)=>({id:s.chairs[i]?.id||crypto.randomUUID(),name:clean(v,35)})):[];
+          if(services.length<1||services.length>12||services.some(v=>!v.name||v.name.length>45||!Number.isInteger(v.minutes)||v.minutes<5||v.minutes>180||(v.price!==null&&(!Number.isFinite(v.price)||v.price<0||v.price>100000))))return fail('Revisa el catálogo.');
+          if(chairs.length<1||chairs.length>8||chairs.some(c=>!c.name||c.name.length>35)||!['shared','individual'].includes(input.mode))return fail('Revisa los sillones y el tipo de fila.');
+          if((s.queue.length||activeTickets(s).length)&&(input.mode!==s.mode||chairs.length<s.chairs.length||services.length<s.services.length))return fail('Vacía la fila antes de quitar servicios, sillones o cambiar el tipo de fila.',409);
+          s.phone=phone;s.services=services;s.chairs=chairs;s.mode=input.mode;break;
         }
         default:return fail('Acción desconocida.');
       }
     }else return fail('Acción desconocida.');
     refreshNotices(s);
-    s.notices=s.notices.filter(n=>[...s.queue,s.current].some(t=>t && n.id.startsWith(t.id+':')));
+    s.notices=s.notices.filter(n=>allTickets(s).some(t=>n.id.startsWith(t.id+':')));
     s.revision=previous.revision+1;
     if(await store.write(s,previous.revision)){
       await dispatchNotices(store,provider);

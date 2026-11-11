@@ -1,7 +1,7 @@
 import {mkdirSync,readFileSync,writeFileSync,copyFileSync} from 'node:fs';
 const html=JSON.stringify(readFileSync('index.html','utf8'));
 const assets=JSON.stringify({'/assets/app.js':readFileSync('app.js','utf8'),'/assets/qrcode.js':readFileSync('vendor/qrcode.js','utf8')});
-const api=readFileSync('notifications.mjs','utf8')+'\n'+readFileSync('api.mjs','utf8').replace(/^import .*\n/gm,'');
+const api=readFileSync('estimates.mjs','utf8')+'\n'+readFileSync('notifications.mjs','utf8')+'\n'+readFileSync('api.mjs','utf8').replace(/^import .*\n/gm,'');
 const worker=`
 const html=${html}, assets=${assets};
 export default {async fetch(request,env) {
