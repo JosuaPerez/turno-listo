@@ -1,0 +1,1 @@
+CREATE TABLE queue_state (id INTEGER PRIMARY KEY, data TEXT NOT NULL, revision INTEGER NOT NULL);
