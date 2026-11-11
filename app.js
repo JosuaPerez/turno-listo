@@ -51,6 +51,7 @@ function addService(service={}){
 }
 function settings(s){
  const form=$('settings');form.elements.phone.value=s.phone;form.elements.mode.value=s.mode;
+ form.elements.noShowMinutes.value=s.noShowMinutes;form.elements.autoSkip.checked=s.autoSkip;
  $('chairSettings').replaceChildren();s.chairs.forEach(c=>addChair(c.name));
  $('serviceSettings').replaceChildren();s.services.forEach(addService);
 }
@@ -64,7 +65,7 @@ function publicRender(s){
  $('join').hidden=!s.open||!!s.own;
  bookingOptions($('join'),s);
  $('own').hidden=!s.own;
- if(s.own)msg('ownText',s.own.status==='waiting'?'Posición '+s.own.position+' · '+waitLabel(s.own.range):'Ya estás en el sillón.');
+ if(s.own)msg('ownText',s.own.status==='waiting'?'Posición '+s.own.position+' · '+waitLabel(s.own.range):s.own.status==='called'?'¡Te toca! Pasa a la barbería.':'Ya estás en el sillón.');
  $('leave').hidden=s.own?.status!=='waiting';
  $('wa').hidden=!s.phone;
  if(s.phone)$('wa').href='https://wa.me/'+s.phone+'?text='+encodeURIComponent('Hola, vi la fila de la barbería. ¿Puedo pasar?');
@@ -107,9 +108,19 @@ function render(s){
    card.append(element('h2',chair.name),element('p',t?t.name:'Sillón libre'));
    const next=button('Llamar al siguiente',()=>change('next',{chairId:chair.id}));
    next.disabled=!s.queue.some(v=>s.mode==='shared'||v.chairId===chair.id);
-   card.append(t?button('Terminar turno',()=>change('finish',{id:t.id,chairId:chair.id})):next);
+   if(!t)card.append(next);
+   else if(t.started)card.append(button('Terminar corte',()=>change('finish',{id:t.id,chairId:chair.id})));
+   else{
+     const timer=element('p',null,'sub');timer.dataset.deadline=t.deadline;card.append(timer);
+     const fields={id:t.id,chairId:chair.id}, actions=element('div',null,'actions');
+     actions.append(button('Llegó · Empezar corte',()=>change('start',fields)),
+       button('Mandar al final',()=>change('no-show',{...fields,disposition:'back'}),true),
+       button('Quitar',()=>change('no-show',{...fields,disposition:'remove'}),true));
+     card.append(actions);
+   }
    return card;
  }));
+ refreshTimers();
  msg('queueHeading','En espera ('+s.queue.length+')');
  $('queue').replaceChildren(...s.queue.map((t,i)=>{
    const li=element('li',null,'row');li.append(element('span',(i+1)+'. '+t.name+' · '+t.minutes+' min'),button('Quitar',()=>change('remove',{id:t.id}),true));return li;
@@ -126,6 +137,19 @@ function render(s){
  }
  $('noticeCard').hidden=!s.notices.length;
  renderQr(s.slug);
+}
+function refreshTimers(){
+ for(const el of document.querySelectorAll('[data-deadline]')){
+   const seconds=Math.max(0,Math.ceil((Number(el.dataset.deadline)-Date.now())/1000));
+   el.textContent=seconds?'Esperando llegada · '+Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0'):'Tiempo de llegada vencido';
+ }
+}
+async function refreshAdmin(){
+ if(!state||pending)return;
+ pending=true;
+ try{const s=await api(adminPath);if(s.revision!==state.revision)render(s);}
+ catch{}
+ finally{pending=false;}
 }
 async function enter(){
  try{const s=await api(adminPath);render(s);settings(s);sessionStorage.setItem('turno-key',key);$('login').reset();msg('error');}
@@ -149,11 +173,12 @@ if(admin){
    e.preventDefault();
    const chairs=[...$('chairSettings').querySelectorAll('input')].map(v=>v.value);
    const services=[...$('serviceSettings').children].map(row=>{const [name,minutes,price]=row.querySelectorAll('input');return {name:name.value,minutes:minutes.value,price:price.value};});
-   if(await change('settings',{...values($('settings')),chairs,services})){settings(state);msg('shareStatus','Ajustes guardados.');}
+   if(await change('settings',{...values($('settings')),chairs,services,autoSkip:$('settings').elements.autoSkip.checked})){settings(state);msg('shareStatus','Ajustes guardados.');}
  };
  $('logout').onclick=()=>{sessionStorage.removeItem('turno-key');location.reload();};
  $('copyLink').onclick=async()=>{const link=$('customerLink').href;try{await navigator.clipboard.writeText(link);msg('shareStatus','Enlace copiado.');}catch{msg('shareStatus',link);}};
  if(key)enter();
+ setInterval(refreshTimers,1000);setInterval(refreshAdmin,5000);
 }else{
  $('client').hidden=false;
  $('join').onsubmit=e=>{e.preventDefault();const data=values($('join'));publicChange({...data,consent:data.consent==='on',action:'join'});};

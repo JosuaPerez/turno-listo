@@ -2,7 +2,7 @@ import {NotificationProvider,enqueueNotice,dispatchNotices} from './notification
 import {firstChair,chairAccepts,nextFor,serviceMinutes,range,predict,record} from './estimates.mjs';
 export const initial = {
   open:true, phone:'', name:'Barbería Turno Listo', slug:'turno-listo',
-  duration:30, queue:[], current:null, notices:[], active:{}, chairs:[firstChair], mode:'shared', history:[],
+  duration:30, queue:[], current:null, notices:[], active:{}, chairs:[firstChair], mode:'shared', history:[], noShowMinutes:5, autoSkip:false,
   services:[{id:'corte',name:'Corte',minutes:30},{id:'corte-barba',name:'Corte y barba',minutes:45},{id:'cejas',name:'Cejas',minutes:10}]
 };
 export const clean = (v,n) => typeof v==='string' ? v.trim().slice(0,n+1) : '';
@@ -23,13 +23,40 @@ function normalize(s){
 function publicView(s,token){
   const t=token?s.queue.find(t=>t.token===token):null;
   const active=token?activeTickets(s).find(t=>t.token===token):null;
-  const own=t?{position:s.queue.filter(v=>s.mode==='shared'||v.chairId===t.chairId).indexOf(t)+1,range:range(predict(s,t)),status:'waiting'}:active?{status:'serving'}:null;
+  const own=t?{position:s.queue.filter(v=>s.mode==='shared'||v.chairId===t.chairId).indexOf(t)+1,range:range(predict(s,t)),status:'waiting'}:active?{status:active.started?'serving':'called',deadline:active.deadline}:null;
   return {name:s.name,slug:s.slug,services:s.services,chairs:s.chairs,mode:s.mode,open:s.open,busy:!!activeTickets(s).length,waiting:s.queue.length,range:range(predict(s)),phone:s.phone,own};
 }
 function refreshNotices(s){
   if(s.open)s.queue.forEach((t,i)=>{
     if((s.mode==='shared'?i:s.queue.filter(v=>v.chairId===t.chairId).indexOf(t))<2||predict(s,t)<=15)enqueueNotice(s,t,'soon');
   });
+}
+function resolveNoShow(s,chairId,t,action){
+  record(s,t,chairId,'no-show');
+  delete s.active[chairId];
+  s.notices=s.notices.filter(n=>n.id!==t.id+':called');
+  if(action==='back'){
+    const {calledAt,deadline,started,...waiting}=t;
+    s.queue.push(waiting);
+  }
+}
+export async function tick(store,provider){
+  for(let attempt=0;attempt<5;attempt++){
+    const previous=await store.read();
+    if(!previous)return null;
+    const s=normalize(structuredClone(previous));
+    const now=Date.now();
+    let changed=false;
+    if(s.autoSkip)for(const [id,t] of Object.entries(s.active)){
+      if(!t.started&&t.deadline<=now){resolveNoShow(s,id,t,'remove');changed=true;}
+    }
+    const count=s.notices.length;
+    refreshNotices(s);
+    if(!changed&&s.notices.length===count){await dispatchNotices(store,provider);return normalize(await store.read());}
+    s.revision=previous.revision+1;
+    if(await store.write(s,previous.revision)){await dispatchNotices(store,provider);return normalize(await store.read());}
+  }
+  return normalize(await store.read());
 }
 function adminView(s,provider){
   return {...s,notices:s.notices.filter(n=>n.status==='manual'||n.status==='pending'&&!provider.automatic||n.status==='sending'&&Date.now()-n.created>60000).map(n=>provider.present(n))};
@@ -43,7 +70,7 @@ export async function route(request, store, key, env={}) {
   if(admin && (!key || request.headers.get('Authorization')!=='Bearer '+key)) return fail('Clave incorrecta.',401);
   const token=request.headers.get('X-Turno-Token')||'';
   if(request.method==='GET'){
-    const s=normalize(await store.read());
+    const s=await tick(store,provider);
     if(match && match[1]!==s.slug) return fail('Barbería no encontrada.',404);
     return json(admin?adminView(s,provider):publicView(s,token));
   }
@@ -79,13 +106,24 @@ export async function route(request, store, key, env={}) {
           const t=chair&&nextFor(s,chair);
           if(!t||s.active[chair.id])return fail('El sillón está ocupado o no hay turnos.',409);
           s.queue=s.queue.filter(v=>v.id!==t.id);
-          s.active[chair.id]={...t,minutes:serviceMinutes(s,t.serviceId,chair.id,t.minutes),started:Date.now()};
+          s.active[chair.id]={...t,minutes:serviceMinutes(s,t.serviceId,chair.id,t.minutes),calledAt:Date.now(),deadline:Date.now()+s.noShowMinutes*60000};
           s.notices=s.notices.filter(n=>n.id!==t.id+':soon'||n.status==='sent');
           enqueueNotice(s,t,'called');break;
         }
+        case 'start': {
+          const t=s.active[input.chairId];
+          if(!t||t.id!==input.id||t.started)return fail('El turno cambió.',409);
+          if(s.autoSkip&&t.deadline<=Date.now())return fail('Ya venció el tiempo para este turno.',409);
+          t.started=Date.now();break;
+        }
+        case 'no-show': {
+          const t=s.active[input.chairId];
+          if(!t||t.id!==input.id||t.started||!['back','remove'].includes(input.disposition))return fail('El turno cambió.',409);
+          resolveNoShow(s,input.chairId,t,input.disposition);break;
+        }
         case 'finish': {
           const t=s.active[input.chairId];
-          if(!t||t.id!==input.id)return fail('El turno cambió. Actualiza la agenda.',409);
+          if(!t||t.id!==input.id||!t.started)return fail('El turno cambió. Actualiza la agenda.',409);
           record(s,t,input.chairId,'served');
           delete s.active[input.chairId];break;
         }
@@ -108,7 +146,10 @@ export async function route(request, store, key, env={}) {
           if(services.length<1||services.length>12||services.some(v=>!v.name||v.name.length>45||!Number.isInteger(v.minutes)||v.minutes<5||v.minutes>180||(v.price!==null&&(!Number.isFinite(v.price)||v.price<0||v.price>100000))))return fail('Revisa el catálogo.');
           if(chairs.length<1||chairs.length>8||chairs.some(c=>!c.name||c.name.length>35)||!['shared','individual'].includes(input.mode))return fail('Revisa los sillones y el tipo de fila.');
           if((s.queue.length||activeTickets(s).length)&&(input.mode!==s.mode||chairs.length<s.chairs.length||services.length<s.services.length))return fail('Vacía la fila antes de quitar servicios, sillones o cambiar el tipo de fila.',409);
-          s.phone=phone;s.services=services;s.chairs=chairs;s.mode=input.mode;break;
+          const noShowMinutes=Number(input.noShowMinutes);
+          if(!Number.isInteger(noShowMinutes)||noShowMinutes<1||noShowMinutes>30)return fail('La espera para presentarse debe ser de 1 a 30 minutos.');
+          s.phone=phone;s.services=services;s.chairs=chairs;s.mode=input.mode;
+          s.noShowMinutes=noShowMinutes;s.autoSkip=input.autoSkip===true;break;
         }
         default:return fail('Acción desconocida.');
       }

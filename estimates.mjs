@@ -17,7 +17,7 @@ export function range(minutes){
 export function predict(s,target,now=Date.now()){
   const chairs=s.chairs.map(chair=>{
     const active=s.active[chair.id];
-    return {chair,free:active?Math.max(0,Math.ceil((active.started+active.minutes*60000-now)/60000)):0};
+    return {chair,free:active?Math.max(0,Math.ceil(((active.started||Math.max(active.deadline||now,now))+active.minutes*60000-now)/60000)):0};
   });
   const ordered=target?s.queue.slice(0,s.queue.indexOf(target)):s.queue;
   for(const t of ordered){
