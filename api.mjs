@@ -31,9 +31,14 @@ function publicView(s,token){
   return {name:s.name,slug:s.slug,services:s.services,chairs:s.chairs,mode:s.mode,hours:s.hours,open:reception(s),busy:!!activeTickets(s).length,waiting:s.queue.length,range:range(predict(s)),phone:s.phone,own};
 }
 function refreshNotices(s){
-  if(reception(s))s.queue.forEach((t,i)=>{
-    if((s.mode==='shared'?i:s.queue.filter(v=>v.chairId===t.chairId).indexOf(t))<2||predict(s,t)<=15)enqueueNotice(s,t,'soon');
-  });
+  if(!reception(s)||!activeTickets(s).length)return;
+  for(const t of s.queue){
+    const eligible=s.chairs.filter(chair=>chairAccepts(s,t,chair));
+    if(eligible.some(chair=>!s.active[chair.id]&&nextFor(s,chair)===t))continue;
+    if(!eligible.some(chair=>s.active[chair.id])||t.soonNotified||!t.phone||predict(s,t)>15)continue;
+    enqueueNotice(s,t,'soon');
+    t.soonNotified=true;
+  }
 }
 function resolveNoShow(s,chairId,t,action){
   record(s,t,chairId,'no-show');

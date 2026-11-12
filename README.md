@@ -15,7 +15,7 @@ Fila web para barberías que atienden por llegada. El barbero abre el panel en e
 | Variable | Uso |
 |---|---|
 | `PORT`, `TURNO_HOST`, `TURNO_DATA` | Puerto, interfaz de red y directorio SQLite del servidor local. Por defecto se escucha en 127.0.0.1:8787. |
-| `TURNO_INVITE` | Código de registro opcional para limitar quién puede crear barberías. |
+| `TURNO_INVITE` | Código de registro. Obligatorio en el Worker para habilitar altas. En Node local, si se omite, el registro sigue disponible. |
 | `TURNO_PASSWORD_PEPPER` | Secreto aleatorio, estable y separado de D1. Obligatorio en el Worker. No lo cambies mientras existan cuentas que lo usan. |
 | `TURNO_RATE_SALT` | Valor aleatorio para derivar las claves del límite de peticiones. Configúralo en producción. |
 | `TURNO_MAINTENANCE_KEY` | Clave para invocar `POST /api/maintenance` con `Authorization: Bearer …` desde un planificador. |
@@ -35,5 +35,5 @@ Al actualizar la demo anterior se descarta su fila de ejemplo y se crea una cuen
 - Se llama al siguiente y, cuando llega, se toca **Empezar corte**. Así el tiempo de llegada se registra aparte. Tras tres servicios del mismo tipo en el mismo sillón, la estimación usa el promedio de hasta los últimos 12 servicios.
 - La espera se expresa en rangos de 5 minutos. En fila común, se simula el siguiente sillón libre. En fila por barbero, el cálculo usa el sillón elegido.
 - El horario usa días seleccionados y una franja diaria en hora de Santo Domingo. El barbero puede pausar la recepción en cualquier momento. Las personas que ya están anotadas conservan su lugar.
-- Cada reserva se consulta mediante un identificador privado guardado en el dispositivo que la creó. Los nombres y teléfonos no se muestran en la vista de otros clientes. Los datos se eliminan al salir, al pedir su borrado o al cumplir 24 horas en la fila. Las métricas conservan eventos sin nombre ni teléfono. El plazo de limpieza en segundo plano depende del intervalo de mantenimiento.
+- El cliente puede guardar su enlace personal para recuperar la reserva en otro dispositivo. El identificador se elimina de la barra de dirección después de abrirlo. Los nombres y teléfonos no se muestran en la vista de otros clientes. Los datos se eliminan al salir, al pedir su borrado o al cumplir 24 horas en la fila. Las métricas conservan eventos sin nombre ni teléfono. El plazo de limpieza en segundo plano depende del intervalo de mantenimiento.
 - El resumen semanal cuenta desde el lunes. «Ausencias» cuenta cada vez que se marca una ausencia. Si el cliente vuelve al final y falta otra vez, cuenta otra ausencia.

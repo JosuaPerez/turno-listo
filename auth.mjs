@@ -63,6 +63,7 @@ export async function allowed(repo,env,request,scope,limit,period,ip){
 }
 export async function authRoute(request,repo,env,ip,path){
   if(request.method!=='POST')return fail('Método inválido.',405);
+  if(path==='register'&&env.TURNO_RUNTIME==='worker'&&!env.TURNO_INVITE)return fail('El registro no está habilitado',503);
   const secure=new URL(request.url).protocol==='https:';
   if(path==='logout'){
     const t=readSession(request);

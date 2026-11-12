@@ -117,3 +117,28 @@ test('alta, duplicados, aislamiento, concurrencia, avisos, ausencias y privacida
  await req('/api/auth/logout',{session:cookie,body:{}});
  assert.equal((await req('/api/agenda',{session:cookie})).status,401);
 });
+
+test('avisa una sola vez con sillón ocupado y espera corta',async()=>{
+ const repo=localRepository(mkdtempSync(tmpdir()+'/turno-notices-'));
+ const s=newShop('avisos','Avisos');
+ const now=Date.now();
+ s.queue=[{id:'t',name:'Cliente',phone:'18095550101',joined:now,minutes:15,serviceId:'corte'}];
+ await repo.createAccount({slug:'avisos',email:'avisos@example.test',hash:await makePassword(crypto.randomUUID())},s);
+ const get=()=>route(new Request('http://localhost/api/b/avisos/estado'),repo);
+ const store=repo.shop('avisos');
+ await get();
+ let shop=await store.read();assert.equal(shop.notices.length,0);
+ shop.active.principal={id:'active',joined:now,started:now-20*60000,minutes:30};
+ assert.equal(await store.write({...shop,revision:shop.revision+1},shop.revision),true);
+ await get();await get();
+ shop=await store.read();
+ assert.deepEqual(shop.notices.map(n=>n.id),['t:soon']);
+ shop.notices=[];
+ assert.equal(await store.write({...shop,revision:shop.revision+1},shop.revision),true);
+ await get();assert.equal((await store.read()).notices.length,0);
+});
+test('Worker sin invitación bloquea el registro',async()=>{
+ const response=await route(new Request('https://example.test/api/auth/register',{method:'POST'}),{}, {TURNO_RUNTIME:'worker'});
+ assert.equal(response.status,503);
+ assert.equal((await response.json()).error,'El registro no está habilitado');
+});

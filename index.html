@@ -18,15 +18,15 @@ label{margin:8px 0}fieldset{border:0;padding:0;margin:0;min-width:0}select{font:
 <label>Servicio<select name="serviceId" required></select></label><label class="chairField" hidden>Barbero<select name="chairId"></select></label>
 <label class="consent"><input name="consent" type="checkbox" required><span>Acepto que la barbería use mi nombre y WhatsApp para manejar mi turno y avisarme. Los datos de la fila se eliminan en 24 horas.</span></label>
 <button>Anotarme</button></form>
-<div class="card" id="own" hidden><h2>Mi turno</h2><p id="ownText"></p><div class="actions"><button class="secondary" id="leave">Salir de la fila</button><button class="secondary" id="erase">Borrar mis datos</button></div></div>
-<p class="notice" id="publicError" role="status"></p>
+<div class="card" id="own" hidden><h2>Mi turno</h2><p id="ownText"></p><p class="quiet">Guarda tu enlace personal para ver el turno en otro celular. Compártelo solo contigo.</p><div class="actions"><button id="copyTicket" class="secondary">Copiar enlace</button><a id="saveTicket" class="btn secondary" target="_blank" rel="noopener noreferrer">Guardar en mi WhatsApp</a></div><p id="ticketFeedback" class="quiet" role="status"></p><div class="actions"><button class="secondary" id="leave">Salir de la fila</button><button class="secondary" id="erase">Borrar mis datos</button></div></div>
+<p id="publicSaving" role="status"></p><p class="notice" id="publicError" role="status"></p>
 <a hidden id="wa" class="btn secondary" target="_blank" rel="noopener">Escribir por WhatsApp</a>
 </section>
 <section id="admin" hidden>
 <div class="place" id="adminName">Turno Listo · Santo Domingo</div><h1>Mi fila</h1>
 <form class="card lock" id="login"><h2>Entra a tu agenda</h2><label>Correo<input name="email" type="email" autocomplete="username" maxlength="150" required></label><label>Contraseña<input name="password" type="password" maxlength="128" autocomplete="current-password" required></label><button>Entrar</button></form>
 <details class="card lock" id="registerCard"><summary>Crear una cuenta para mi barbería</summary><form id="register"><label>Nombre de la barbería<input name="name" maxlength="60" required></label><label>Dirección del enlace<input name="slug" maxlength="48" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="mi-barberia" required></label><label>Correo<input name="email" type="email" autocomplete="username" maxlength="150" required></label><label>Contraseña<input name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label><label>Código de registro (si te dieron uno)<input name="invite" type="password" maxlength="128"></label><button>Crear barbería</button></form></details>
-<p class="notice" id="error" role="status"></p>
+<p id="saving" role="status"></p><p class="notice" id="error" role="status"></p>
 <div id="controls" hidden>
 <div class="card row"><div><h2>Recepción</h2><span id="shop" class="sub"></span></div><button id="toggle" class="secondary"></button></div>
 <div id="chairs"></div>
