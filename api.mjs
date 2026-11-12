@@ -237,7 +237,9 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
           const hours=validHours(input.hours), name=clean(input.name,60);
           if(!hours||!name||name.length>60)return fail('Revisa el nombre y el horario de la barbería.');
           s.name=name;s.phone=phone;s.services=services;s.chairs=chairs;s.mode=input.mode;s.hours=hours;
-          s.noShowMinutes=noShowMinutes;s.autoSkip=input.autoSkip===true;break;
+          s.noShowMinutes=noShowMinutes;s.autoSkip=input.autoSkip===true;
+          if(input.onboarded===true)s.onboarded=true;
+          break;
         }
         default:return fail('Acción desconocida.');
       }

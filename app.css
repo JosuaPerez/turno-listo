@@ -99,3 +99,9 @@ label{margin:8px 0}fieldset{border:0;padding:0;margin:0;min-width:0}select{font:
  #poster img { display:block; width:min(135mm,100%); margin:8mm auto; }
  #poster small { font-size:11pt; }
 }
+
+.onboarding { position:fixed; inset:0; width:100%; height:100%; max-width:none; max-height:none; margin:0; padding:clamp(16px,5vw,32px); border:0; color:var(--ink); background:var(--bg); }
+.onboarding form { max-width:480px; margin:0 auto; }
+.onboarding h1 { font-size:clamp(2rem,9vw,3.5rem); }
+.onboarding #wizardShare a { overflow-wrap:anywhere; }
+.onboarding .notice:empty { display:none; }

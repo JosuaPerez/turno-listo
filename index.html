@@ -22,6 +22,16 @@
 <details class="card lock" id="forgot"><summary>Olvidé mi contraseña</summary><p>Pídele al operador de Turno Listo un enlace de recuperación e indícale el correo de tu cuenta. El enlace vence en 30 minutos.</p></details><details class="card lock" id="registerCard"><summary>Crear una cuenta para mi barbería</summary><form id="register"><label>Nombre de la barbería<input name="name" maxlength="60" required></label><label>Dirección del enlace<input name="slug" maxlength="48" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="mi-barberia" required></label><label>Correo<input name="email" type="email" autocomplete="username" maxlength="150" required></label><label>Contraseña<input name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label><label>Código de registro (si te dieron uno)<input name="invite" type="password" maxlength="128"></label><button>Crear barbería</button></form></details>
 <p id="saving" class="save-status" role="status"></p><p class="notice" id="error" role="status"></p>
 
+<dialog id="onboarding" class="onboarding" aria-labelledby="wizardTitle">
+ <form id="wizardForm">
+  <p id="wizardProgress" class="place"></p><h1 id="wizardTitle"></h1>
+  <div id="wizardGeneral"><label>Nombre de la barbería<input id="wizardName" maxlength="60" required></label><label>WhatsApp de la barbería<input id="wizardPhone" type="tel" maxlength="24"></label></div>
+  <div id="wizardServices" hidden></div>
+  <div id="wizardShare" hidden><p>Imprime el afiche o comparte el enlace con tus clientes.</p><img id="wizardQr" class="qr" alt="Código QR de la barbería"><p><a id="wizardLink"></a></p><button id="wizardPrint" type="button" class="secondary">Imprimir afiche</button></div>
+  <p id="wizardError" class="notice" role="status"></p>
+  <div class="actions"><button id="wizardNext">Continuar</button><button id="wizardSkip" type="button" class="secondary">Omitir por ahora</button></div>
+ </form>
+</dialog>
 <div id="controls" hidden>
  <p id="newTurnNotice" class="new-turn-notice" role="status" hidden></p>
  <div class="panel-header"><h1 id="adminName"></h1><button id="toggle" type="button" class="reception-chip" aria-pressed="false"><span id="shop"></span></button></div>

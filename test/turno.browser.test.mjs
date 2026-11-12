@@ -140,6 +140,18 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  await register.getByLabel('Correo').fill(email);
  await register.getByLabel('Contraseña').fill(password);
  await register.getByRole('button',{name:'Crear barbería'}).click();
+ const wizard=barber.locator('#onboarding');
+ await wizard.waitFor();
+ assert.match(await wizard.textContent(),/Paso 1 de 3/);
+ if(process.env.TURNO_SCREENSHOTS_DIR)await barber.screenshot({path:join(process.env.TURNO_SCREENSHOTS_DIR,'4-asistente.png')});
+ await wizard.getByRole('button',{name:'Continuar'}).click();
+ await text(barber,'#wizardTitle','Tus servicios');
+ assert.equal(await wizard.locator('#serviceSettings input[aria-label="Nombre del servicio"]').count(),3);
+ await wizard.getByRole('button',{name:'Omitir por ahora'}).click();
+ await text(barber,'#wizardTitle','Tu QR está listo');
+ await wizard.getByRole('button',{name:'Empezar'}).click();
+ await wizard.waitFor({state:'hidden'});
+ assert.equal((await (await barber.request.get(base+'/api/v1/agenda')).json()).onboarded,true);
  await barber.locator('#controls').waitFor();
  await enabled(barber,'#toggle');
  assert.equal(await barber.evaluate(()=>performance.timeOrigin),initialDocument);
@@ -206,6 +218,7 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  assert.equal(saved.services[0].price,450);
  await barber.reload();
  await barber.locator('#controls').waitFor();
+ assert.equal(await barber.locator('#onboarding').isVisible(),false);
  assert.equal(await barber.locator('#tab-ajustes').getAttribute('aria-selected'),'true');
  await barber.locator('#accountSection summary').click();
  await Promise.all([barber.waitForNavigation(),barber.getByRole('button',{name:'Cerrar sesión'}).click()]);

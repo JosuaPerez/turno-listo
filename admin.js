@@ -5,6 +5,7 @@ const tabs=['fila','compartir','estadisticas','ajustes'];
 const dayNames=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
 const localDay=new Intl.DateTimeFormat('es-DO',{timeZone:'America/Santo_Domingo',dateStyle:'short'});
 const gate=saves($('admin'),'saving');
+let wizardStep=1, wizardBusy=false;
 let state, selected='fila', settingsSnapshot, settingsDirty=false, qrPromise, qrSlug;
 let audio, unread=0, noticeTimer;
 const soundKey='turno-new-turn-sound';
@@ -101,7 +102,7 @@ async function renderQr(slug){
   const ctx=canvas.getContext('2d');
   ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#000';
   for(let r=0;r<size;r++)for(let c=0;c<size;c++)if(qr.isDark(r,c))ctx.fillRect((c+margin)*pixels,(r+margin)*pixels,pixels,pixels);
-  $('download').href=canvas.toDataURL('image/png');$('posterQr').src=$('download').href;$('download').download=slug+'-qr.png';
+  $('download').href=canvas.toDataURL('image/png');$('posterQr').src=$('download').href;$('wizardQr').src=$('download').href;$('download').download=slug+'-qr.png';
   qrSlug=slug;
  }catch(error){msg('shareStatus',error.message);}
 }
@@ -302,6 +303,53 @@ function fillSettings(s){
  settingsSnapshot=JSON.stringify(settingsPayload());updateDirty();
 }
 
+function moveWizardEditors(intoWizard){
+ const container=$('wizardServices');
+ const list=$('serviceSettings'), add=$('addService');
+ if(intoWizard)container.append(list,add);
+ else $('serviceSection').append(list,add);
+}
+
+function showWizard(){
+ const dialog=$('onboarding');
+ if(!dialog.open){
+  $('wizardName').value=state.name;$('wizardPhone').value=state.phone;
+  dialog.showModal();
+ }
+ moveWizardEditors(wizardStep===2);
+ msg('wizardProgress','Paso '+wizardStep+' de 3');
+ msg('wizardTitle',['Tu barbería','Tus servicios','Tu QR está listo'][wizardStep-1]);
+ $('wizardGeneral').hidden=wizardStep!==1;
+ $('wizardServices').hidden=wizardStep!==2;
+ $('wizardShare').hidden=wizardStep!==3;
+ $('wizardName').disabled=wizardStep!==1;
+ msg('wizardNext',wizardStep===3?'Empezar':'Continuar');
+ if(wizardStep===3){
+  const link=customerUrl(state.slug);$('wizardLink').href=link;msg('wizardLink',link);
+  void renderQr(state.slug);
+ }
+}
+
+async function advanceWizard(skip){
+ if(wizardBusy)return;
+ wizardBusy=true;msg('wizardError');
+ try{
+  if(wizardStep===2)moveWizardEditors(false);
+  const payload=settingsPayload();
+  if(wizardStep===1&&!skip){payload.name=$('wizardName').value;payload.phone=$('wizardPhone').value;}
+  if(wizardStep===3)payload.onboarded=true;
+  if(!skip||wizardStep===3){
+   if(!await change('settings',payload)){
+    if(wizardStep===2)moveWizardEditors(true);
+    msg('wizardError',$('error').textContent);return;
+   }
+  }
+  fillSettings(state);
+  if(wizardStep===3){$('onboarding').close();return;}
+  wizardStep++;showWizard();
+ }finally{wizardBusy=false;}
+}
+
 async function refreshAdmin(){
  if(!state)return;
  const task=gate.beginPoll();if(!task)return;
@@ -320,6 +368,7 @@ async function enter(){
  try{
   const s=await api(adminPath);
   render(s);fillSettings(s);$('login').reset();msg('error');
+  if(!s.onboarded)showWizard();
  }catch(e){if(e.status!==401)msg('error',e.message);}
 }
 
@@ -362,7 +411,11 @@ export function startAdmin(){
  };
  $('logout').onclick=async()=>{try{await api('/api/v1/auth/logout',{});location.reload();}catch(e){msg('error',e.message);}};
  $('copyStats').onclick=()=>copy(state.stats.message,'statsStatus');
- $('printPoster').onclick=async()=>{await renderQr(state.slug);if(qrSlug===state.slug)window.print();};
+ const print=async()=>{await renderQr(state.slug);if(qrSlug===state.slug)window.print();};
+ $('printPoster').onclick=print;$('wizardPrint').onclick=print;
+ $('onboarding').oncancel=e=>e.preventDefault();
+ $('wizardForm').onsubmit=e=>{e.preventDefault();void advanceWizard(false);};
+ $('wizardSkip').onclick=()=>advanceWizard(true);
  $('download').onclick=markQr;$('shareWa').onclick=markQr;
  $('copyLink').onclick=()=>copy($('customerLink').href,'shareStatus',markQr);
  $('turnSound').checked=soundEnabled();

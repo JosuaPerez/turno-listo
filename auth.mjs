@@ -91,7 +91,7 @@ export async function authRoute(request,repo,env,ip,path){
     if(env.TURNO_INVITE && data.invite!==env.TURNO_INVITE)return fail('El código de registro no es válido.',403);
     if(password.length<12||!slugPattern.test(slug)||slug.length>48||!name||name.length>60)return fail('Usa un nombre, una dirección válida y una contraseña de 12 caracteres o más.');
     const hash=await makePassword(password,env.TURNO_PASSWORD_PEPPER);
-    const inserted=await repo.createAccount({slug,email,hash},newShop(slug,name));
+    const inserted=await repo.createAccount({slug,email,hash},{...newShop(slug,name),onboarded:false});
     if(!inserted){
       if(await repo.shopExists(slug))return fail('Ese enlace ya está en uso.',409);
       return fail('No pudimos crear la cuenta con esos datos.',409);

@@ -416,3 +416,14 @@ test('finish-next termina y llama con una sola revisión en cada modo',async()=>
   assert.ok(after.history[0].minutes>=12&&after.history[0].minutes<13);
  }
 });
+
+test('una barbería existente se considera configurada y el registro nuevo empieza pendiente',async()=>{
+ const repo=localRepository(mkdtempSync(tmpdir()+'/turno-onboarding-'));
+ const old=newShop('vieja','Vieja');delete old.onboarded;
+ const pepper=crypto.randomUUID();
+ await repo.createAccount({slug:old.slug,email:'vieja@example.test',hash:await makePassword(crypto.randomUUID(),pepper)},old);
+ assert.equal((await repo.shop(old.slug).read()).onboarded,true);
+ const register=await route(new Request('http://localhost/api/v1/auth/register',{method:'POST',body:JSON.stringify({slug:'nueva',name:'Nueva',email:'nueva@example.test',password:crypto.randomUUID()})}),repo,{TURNO_PASSWORD_PEPPER:pepper});
+ assert.equal(register.status,200);
+ assert.equal((await repo.shop('nueva').read()).onboarded,false);
+});
