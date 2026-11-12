@@ -52,10 +52,9 @@ label{margin:8px 0}fieldset{border:0;padding:0;margin:0;min-width:0}select{font:
 .panel-tabs { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; }
 .panel-bottom.has-save { column-gap: 5px; }
 .panel-bottom.has-save .panel-tabs { gap: 2px; }
-.panel-bottom.has-save .panel-tabs button { font-size: clamp(.63rem,2.8vw,.78rem); }
 #saveSettings { width: 78px; padding: 4px 5px; font-size: .76rem; line-height: 1.15; }
-.panel-tabs button { min-width: 0; padding: 3px 2px; background: transparent; border-color: transparent; color: var(--dim); font-size: .78rem; }
-.panel-tabs button[aria-selected=true] { background: var(--lime); color: #222913; font-weight: 800; }
+.panel-tabs button { min-width: 0; padding: 3px 2px; background: transparent; border-color: transparent; color: var(--dim); font-size: 12px; }
+.panel-tabs button[aria-selected=true] { border-top: 2px solid var(--lime); color: var(--ink); font-weight: 800; }
 .panel-dock { position: fixed; z-index: 5; inset: auto 0 var(--tabs-height); display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 12px; background: #202318; border-top: 1px solid var(--border); }
 .next-bar { overflow-x: auto; justify-content: safe center; }
 .next-bar button { flex: 0 0 auto; max-width: 90vw; min-width: min(220px,60vw); }

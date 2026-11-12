@@ -90,7 +90,7 @@ async function capturePanels(barber,browser,base){
   const size=width+'x'+height;
   await barber.setViewportSize({width,height});
   await visitor.setViewportSize({width,height});
-  for(const [name,slug] of [['Fila','fila'],['Compartir','compartir'],['Estadísticas','estadisticas'],['Ajustes','ajustes']]){
+  for(const [name,slug] of [['Fila','fila'],['Compartir','compartir'],['Resumen','estadisticas'],['Ajustes','ajustes']]){
    await tab(barber,name);
    if(slug==='compartir')await barber.waitForFunction(()=>document.getElementById('download').getAttribute('href')?.startsWith('data:image/png'));
    if(slug==='ajustes')await barber.locator('#panel-ajustes').evaluate(panel=>{
@@ -147,7 +147,7 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  assert.match(barber.url(),/#fila$/);
  await tab(barber,'Compartir');
  await barber.waitForFunction(()=>document.getElementById('download').getAttribute('href')?.startsWith('data:image/png'));
- await tab(barber,'Estadísticas');
+ await tab(barber,'Resumen');
  await text(barber,'#stats','Hora pico');
  await tab(barber,'Ajustes');
  assert.equal(await barber.locator('#saveSettings').isVisible(),false);
@@ -170,6 +170,16 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  assert.equal(await sunday.locator('span').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(218, 255, 135)');
  await sunday.click();
  await enabled(barber,'#saveSettings');
+ await barber.setViewportSize({width:360,height:740});
+ assert.ok(await barber.locator('#panelTabs button').evaluateAll(tabs=>tabs.every(tab=>parseFloat(getComputedStyle(tab).fontSize)>=12&&tab.scrollWidth<=tab.clientWidth+2)));
+ const activeTab=await barber.locator('[role=tab][aria-selected=true]').evaluate(tab=>{
+  const style=getComputedStyle(tab);return [style.backgroundColor,style.borderTopColor];
+ });
+ assert.deepEqual(activeTab,['rgba(0, 0, 0, 0)','rgb(218, 255, 135)']);
+ if(process.env.TURNO_SCREENSHOTS_DIR){
+  await mkdir(process.env.TURNO_SCREENSHOTS_DIR,{recursive:true});
+  await barber.screenshot({path:join(process.env.TURNO_SCREENSHOTS_DIR,'0-barra.png')});
+ }
  assert.equal(await barber.locator('#panelBottom #saveSettings').isVisible(),true);
  const tabsBox=await barber.locator('#panelTabs').boundingBox(), saveBox=await barber.locator('#saveSettings').boundingBox();
  assert.ok(Math.abs(tabsBox.y-saveBox.y)<=4,'Guardar comparte la fila de pestañas');
@@ -225,7 +235,7 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  assert.equal(await barber.locator('#nextBar').isVisible(),false);
  await tab(barber,'Ajustes');
  assert.equal(await barber.locator('#nextBar').isVisible(),false);
- await tab(barber,'Estadísticas');
+ await tab(barber,'Resumen');
  assert.equal(await barber.locator('#nextBar').isVisible(),false);
  await tab(barber,'Fila');
  assert.equal(await barber.locator('#nextBar').isVisible(),true);
