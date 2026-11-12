@@ -150,16 +150,23 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  await tab(barber,'Estadísticas');
  await text(barber,'#stats','Hora pico');
  await tab(barber,'Ajustes');
- assert.equal(await barber.locator('#saveSettings').isDisabled(),true);
+ assert.equal(await barber.locator('#saveSettings').isVisible(),false);
  await barber.locator('#serviceSection summary').click();
  await barber.locator('#serviceSettings input[aria-label="Precio RD$ del servicio"]').first().fill('450');
  await barber.locator('#hoursSection summary').click();
  assert.equal(await barber.locator('#dayChips input').count(),7);
  assert.equal(await barber.locator('#dayChips .day-chip').first().evaluate(el=>el.getBoundingClientRect().height>=44),true);
  await enabled(barber,'#saveSettings');
+ assert.equal(await barber.locator('#panelBottom #saveSettings').isVisible(),true);
+ const tabsBox=await barber.locator('#panelTabs').boundingBox(), saveBox=await barber.locator('#saveSettings').boundingBox();
+ assert.ok(Math.abs(tabsBox.y-saveBox.y)<=4,'Guardar comparte la fila de pestañas');
+ await tab(barber,'Fila');
+ assert.equal(await barber.locator('#saveSettings').isVisible(),false);
+ await tab(barber,'Ajustes');
+ assert.equal(await barber.locator('#saveSettings').isVisible(),true);
  await barber.locator('#saveSettings').click();
  await text(barber,'#settingsStatus','Guardado.');
- assert.equal(await barber.locator('#saveSettings').isDisabled(),true);
+ assert.equal(await barber.locator('#saveSettings').isVisible(),false);
  const saved=await (await barber.request.get(base+'/api/v1/agenda')).json();
  assert.equal(saved.services[0].price,450);
  await barber.reload();
@@ -234,7 +241,7 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
 
  assert.equal(await barber.evaluate(()=>performance.timeOrigin),loginDocument);
  assert.match(await barber.locator('#download').getAttribute('href'),/^data:image\/png/);
- assert.equal(await barber.locator('#panelTabs').evaluate(el=>getComputedStyle(el).position),'fixed');
+ assert.equal(await barber.locator('#panelBottom').evaluate(el=>getComputedStyle(el).position),'fixed');
  assert.equal(await barber.locator('#nextBar').isVisible(),false);
  assert.equal(await client.locator('.hero').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(218, 255, 135)');
  assert.match(response.headers()['content-security-policy'],/style-src 'self';/);

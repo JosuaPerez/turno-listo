@@ -5,7 +5,7 @@ const tabs=['fila','compartir','estadisticas','ajustes'];
 const dayNames=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
 const localDay=new Intl.DateTimeFormat('es-DO',{timeZone:'America/Santo_Domingo',dateStyle:'short'});
 const gate=saves($('admin'),'saving');
-let state, selected='fila', settingsSnapshot, qrPromise, qrSlug;
+let state, selected='fila', settingsSnapshot, settingsDirty=false, qrPromise, qrSlug;
 const currency=value=>'RD$ '+rd.format(value??0);
 const shareUrl=url=>'https://wa.me/?text='+encodeURIComponent('Anótate en la fila de la barbería: '+url);
 const customerUrl=slug=>new URL('/b/'+slug,location.origin).href;
@@ -24,7 +24,8 @@ function selectTab(){
   $('tab-'+tab).setAttribute('aria-selected',String(tab===selected));
   $('tab-'+tab).tabIndex=tab===selected?0:-1;
  }
- document.body.classList.toggle('with-dock',selected==='ajustes'||(selected==='fila'&&!$('nextBar').hidden));
+ document.body.classList.toggle('with-dock',selected==='fila'&&!$('nextBar').hidden);
+ syncSaveButton();
  if(selected==='compartir'&&state)void renderQr(state.slug);
 }
 
@@ -239,8 +240,16 @@ function settingsPayload(){
  return {name,phone,mode,noShowMinutes,chairs,services,hours,autoSkip:f.autoSkip.checked};
 }
 
+function syncSaveButton(){
+ const save=$('saveSettings');
+ save.hidden=selected!=='ajustes'||!settingsDirty;
+ $('panelBottom').classList.toggle('has-save',!save.hidden);
+}
+
 function updateDirty(){
- $('saveSettings').disabled=JSON.stringify(settingsPayload())===settingsSnapshot;
+ settingsDirty=JSON.stringify(settingsPayload())!==settingsSnapshot;
+ $('saveSettings').disabled=!settingsDirty;
+ syncSaveButton();
  msg('settingsStatus');
 }
 

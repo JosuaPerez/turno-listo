@@ -48,15 +48,17 @@ label{margin:8px 0}fieldset{border:0;padding:0;margin:0;min-width:0}select{font:
 .share-card .qr { width: min(100%,280px); }
 .share-card .actions { justify-content: center; }
 .feedback:empty, .admin-page .notice:empty, .admin-page .save-status:empty { display: none; }
-.panel-tabs { position: fixed; z-index: 6; inset: auto 0 0; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; min-height: var(--tabs-height); padding: 6px max(8px,calc((100vw - 700px)/2)) calc(6px + env(safe-area-inset-bottom)); background: #202318; border-top: 1px solid var(--border); }
+.panel-bottom { position: fixed; z-index: 6; inset: auto 0 0; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; min-height: var(--tabs-height); padding: 6px max(8px,calc((100vw - 700px)/2)) calc(6px + env(safe-area-inset-bottom)); background: #202318; border-top: 1px solid var(--border); }
+.panel-tabs { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; }
+.panel-bottom.has-save { column-gap: 5px; }
+.panel-bottom.has-save .panel-tabs { gap: 2px; }
+.panel-bottom.has-save .panel-tabs button { font-size: clamp(.63rem,2.8vw,.78rem); }
+#saveSettings { width: 78px; padding: 4px 5px; font-size: .76rem; line-height: 1.15; }
 .panel-tabs button { min-width: 0; padding: 3px 2px; background: transparent; border-color: transparent; color: var(--dim); font-size: .78rem; }
 .panel-tabs button[aria-selected=true] { background: var(--lime); color: #222913; font-weight: 800; }
 .panel-dock { position: fixed; z-index: 5; inset: auto 0 var(--tabs-height); display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 12px; background: #202318; border-top: 1px solid var(--border); }
 .next-bar { overflow-x: auto; justify-content: safe center; }
 .next-bar button { flex: 0 0 auto; max-width: 90vw; min-width: min(220px,60vw); }
-.settings-dock button { flex: 1; max-width: 480px; }
-.settings-dock span { color: var(--dim); font-size: .76rem; }
-.settings-dock span:empty { display: none; }
 .settings-section summary { font-weight: 750; }
 .settings-section[open] summary { margin-bottom: 8px; }
 .editor-list { display: grid; gap: 6px; margin-bottom: 8px; }
