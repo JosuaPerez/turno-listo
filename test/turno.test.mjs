@@ -389,22 +389,3 @@ test('Bearer comparte expiración, revocación y aislamiento con la sesión de l
  }
  assert.equal((await call('/auth/login',{body:{email,password,token:true},ip:'192.0.2.12'})).status,429);
 });
-
-test('la limpieza de verificación solo borra cuentas ficticias confirmadas',async()=>{
- const repo=localRepository(mkdtempSync(tmpdir()+'/turno-cleanup-'));
- const suffix=crypto.randomUUID().replaceAll('-','').slice(0,12);
- const slug='verificacion-'+suffix, email='prueba-'+suffix+'@example.invalid';
- const env={TURNO_MAINTENANCE_KEY:crypto.randomUUID()};
- const hash=await makePassword(crypto.randomUUID());
- await repo.createAccount({slug,email,hash},newShop(slug,'Verificación'));
- const ordinary='verificacion-'+crypto.randomUUID().replaceAll('-','').slice(0,12);
- await repo.createAccount({slug:ordinary,email:'ordinary@example.test',hash},newShop(ordinary,'Cuenta normal'));
- const path='https://example.test/api/v1/admin/delete-verification-shop';
- const remove=(candidate,confirm,key)=>route(new Request(path,{method:'POST',body:JSON.stringify({slug:candidate,confirm}),headers:key?{Authorization:'Bearer '+key}:{}}),repo,env);
- assert.equal((await remove(slug,slug)).status,404);
- assert.equal((await remove(slug,'otro',env.TURNO_MAINTENANCE_KEY)).status,400);
- assert.equal((await remove(ordinary,ordinary,env.TURNO_MAINTENANCE_KEY)).status,404);
- assert.equal((await remove(slug,slug,env.TURNO_MAINTENANCE_KEY)).status,200);
- assert.equal(await repo.shopExists(slug),null);
- assert.ok(await repo.shopExists(ordinary));
-});

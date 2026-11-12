@@ -110,20 +110,10 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
     if(pathname.startsWith('/api/auth/')&&pathname!=='/api/auth/logout'&&!env.TURNO_PASSWORD_PEPPER)return fail('El inicio de sesión no está configurado.',503);
   }
   const provider=new NotificationProvider(env);
-  const cleanup=pathname==='/api/admin/delete-verification-shop';
-  const operatorPath=cleanup||pathname==='/api/maintenance'||pathname==='/api/admin/reset';
+  const operatorPath=pathname==='/api/maintenance'||pathname==='/api/admin/reset';
   const operatorBearer=operatorPath&&env.TURNO_MAINTENANCE_KEY&&request.headers.get('Authorization')==='Bearer '+env.TURNO_MAINTENANCE_KEY;
   const sessionBearer=(pathname==='/api/agenda'||pathname==='/api/auth/logout')&&readBearer(request);
   if(request.method==='POST'&&!operatorBearer&&!sessionBearer&&request.headers.get('Origin')&&request.headers.get('Origin')!==url.origin)return fail('Origen no permitido.',403);
-  if(cleanup){
-    if(request.method!=='POST'||!operatorBearer)return fail('Ruta no encontrada.',404);
-    const input=await parseBody(request);
-    const slug=input?.slug;
-    const suffix=typeof slug==='string'&&slug.match(/^verificacion-([a-f0-9]{12})$/)?.[1];
-    if(!suffix||input.confirm!==slug)return fail('Confirma el identificador de una cuenta de verificación.',400);
-    if(!await repo.deleteVerificationShop(slug,'prueba-'+suffix+'@example.invalid'))return fail('Cuenta de verificación no encontrada.',404);
-    return json({ok:true});
-  }
   if(pathname==='/api/maintenance'){
     if(request.method!=='POST'||!env.TURNO_MAINTENANCE_KEY||request.headers.get('Authorization')!=='Bearer '+env.TURNO_MAINTENANCE_KEY)return fail('Ruta no encontrada.',404);
     await maintain(repo,env);return json({ok:true});

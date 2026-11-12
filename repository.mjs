@@ -2,9 +2,6 @@ import {initial} from './shop.mjs';
 export function repository(db){
   const stmt=(sql,...params)=>db.prepare(sql).bind(...params);
   return {
-    async deleteVerificationShop(slug,email){
-      return (await stmt('DELETE FROM shops WHERE slug=? AND email=?',slug,email).run()).meta.changes===1;
-    },
     shopExists:slug=>stmt('SELECT 1 FROM shops WHERE slug=?',slug).first(),
     account:email=>stmt('SELECT slug, password_hash FROM shops WHERE email=?',email).first(),
     async createAccount(account,shop){
