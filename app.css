@@ -69,12 +69,12 @@ label{margin:8px 0}fieldset{border:0;padding:0;margin:0;min-width:0}select{font:
 .check-control { min-height: 44px; display: flex; align-items: center; gap: 8px; font-size: .86rem; }
 .arrival-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: end; gap: 10px; }
 .arrival-row label, .hours-row label { font-size: .84rem; }
-#dayChips { display: grid; grid-template-columns: repeat(7,minmax(44px,1fr)); margin-inline: -5px; overflow: auto; }
+#dayChips { display: grid; grid-template-columns: repeat(7,minmax(44px,1fr)); gap: 2px; margin-inline: -7px; overflow: auto; }
 .day-chip { margin: 0; cursor: pointer; }
 .day-chip input { position: absolute; width: 1px; height: 1px; min-height: 0; margin: 0; opacity: 0; }
-.day-chip span { display: grid; place-items: center; min-height: 44px; border-radius: 8px; color: var(--dim); }
-.day-chip input:checked + span { background: #354223; color: var(--lime); }
-.day-chip input:focus-visible + span { outline: 2px solid var(--lime); outline-offset: -2px; }
+.day-chip span { display: grid; place-items: center; min-width: 44px; min-height: 44px; border: 1px solid #858b78; border-radius: 8px; color: var(--dim); }
+.day-chip input:checked + span { background: var(--lime); border-color: var(--lime); color: #222913; font-weight: 800; }
+.day-chip input:focus-visible + span { outline: 2px solid #fff; outline-offset: -3px; }
 .stats-tiles { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
 .stats-table { border-collapse: collapse; width: 100%; font-size: .82rem; }
 .stats-table th, .stats-table td { text-align: left; padding: 7px 4px; border-bottom: 1px solid var(--border); }

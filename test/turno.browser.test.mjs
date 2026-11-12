@@ -155,7 +155,20 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  await barber.locator('#serviceSettings input[aria-label="Precio RD$ del servicio"]').first().fill('450');
  await barber.locator('#hoursSection summary').click();
  assert.equal(await barber.locator('#dayChips input').count(),7);
- assert.equal(await barber.locator('#dayChips .day-chip').first().evaluate(el=>el.getBoundingClientRect().height>=44),true);
+ await barber.setViewportSize({width:360,height:740});
+ const days=barber.locator('#dayChips');
+ const chips=await days.locator('.day-chip span').evaluateAll(items=>items.map(item=>{
+  const {width,height}=item.getBoundingClientRect(), css=getComputedStyle(item);
+  return {width,height,border:css.borderTopWidth,borderColor:css.borderTopColor,background:css.backgroundColor};
+ }));
+ assert.ok(chips.every(chip=>chip.width>=44&&chip.height>=44&&chip.border==='1px'));
+ assert.equal(chips[0].borderColor,'rgb(133, 139, 120)');
+ assert.equal(chips[1].background,'rgb(218, 255, 135)');
+ const sunday=days.locator('.day-chip').first();
+ await sunday.click();
+ assert.equal(await sunday.locator('input').isChecked(),true);
+ assert.equal(await sunday.locator('span').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(218, 255, 135)');
+ await sunday.click();
  await enabled(barber,'#saveSettings');
  assert.equal(await barber.locator('#panelBottom #saveSettings').isVisible(),true);
  const tabsBox=await barber.locator('#panelTabs').boundingBox(), saveBox=await barber.locator('#saveSettings').boundingBox();
