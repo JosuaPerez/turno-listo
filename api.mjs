@@ -4,7 +4,7 @@ import {NotificationProvider,enqueueNotice,dispatchNotices} from './notification
 import {firstChair,chairAccepts,nextFor,serviceMinutes,range,predict,record} from './estimates.mjs';
 import {resetRoute} from './password-reset.mjs';
 import {initial,newShop} from './shop.mjs';
-import {clean,json,fail,ticket} from './http.mjs';
+import {clean,json,fail,ticket,apiPath,withApiHeaders} from './http.mjs';
 export {initial,newShop};
 export function phoneNumber(value) {
   const digits=clean(value,24).replace(/\D/g,'');
@@ -98,8 +98,18 @@ function allowPublicRead(slug,ip,now=Date.now()){
   return true;
 }
 export async function route(request, repo, env={}, ip='unknown', defer) {
+  const url=new URL(request.url), pathname=apiPath(url.pathname);
+  let response;
+  try{response=await handleRoute(request,repo,env,ip,defer,url,pathname);}
+  catch{response=fail('No pudimos completar la solicitud.',500);}
+  return withApiHeaders(url.pathname,response);
+}
+async function handleRoute(request,repo,env,ip,defer,url,pathname){
+  if(env.TURNO_RUNTIME==='worker'){
+    if(pathname==='/api/auth/register'&&!env.TURNO_INVITE)return fail('El registro no está habilitado',503);
+    if(pathname.startsWith('/api/auth/')&&pathname!=='/api/auth/logout'&&!env.TURNO_PASSWORD_PEPPER)return fail('El inicio de sesión no está configurado.',503);
+  }
   const provider=new NotificationProvider(env);
-  const url=new URL(request.url),{pathname}=url;
   if(request.method==='POST'&&request.headers.get('Origin')&&request.headers.get('Origin')!==url.origin)return fail('Origen no permitido.',403);
   if(pathname==='/api/maintenance'){
     if(request.method!=='POST'||!env.TURNO_MAINTENANCE_KEY||request.headers.get('Authorization')!=='Bearer '+env.TURNO_MAINTENANCE_KEY)return fail('Ruta no encontrada.',404);

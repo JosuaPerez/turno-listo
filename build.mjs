@@ -55,15 +55,13 @@ async function handle(request,env,ctx){
     return new Response(body,{headers:{'Content-Type':type+'; charset=utf-8'}});
   }
   if(path==='/'||path==='/barbero'||path==='/restablecer'||/^\/b\/[a-z0-9-]+$/.test(path))return new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
-  if(path==='/api/auth/register'&&!env.TURNO_INVITE)return __http.fail('El registro no está habilitado',503);
-  if(path.startsWith('/api/auth/')&&path!=='/api/auth/logout'&&!env.TURNO_PASSWORD_PEPPER)return __http.fail('El inicio de sesión no está configurado.',503);
   return __api.route(request,__repository.repository(env.DB),{...env,TURNO_RUNTIME:'worker'},request.headers.get('CF-Connecting-IP')||'unknown',ctx.waitUntil.bind(ctx));
 }
 export default {
   async fetch(request,env,ctx){
     let response;
     try{response=await handle(request,env,ctx);}
-    catch{response=__http.fail('No pudimos completar la solicitud.',500);}
+    catch{response=__http.withApiHeaders(new URL(request.url).pathname,__http.fail('No pudimos completar la solicitud.',500));}
     return __security.secureResponse(response,true);
   },
   scheduled(controller,env,ctx){ctx.waitUntil(__api.maintain(__repository.repository(env.DB),env));}

@@ -112,7 +112,7 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  const pollSeen=new Promise(resolve=>{resolvePoll=resolve;});
  const hold=new Promise(resolve=>{releasePoll=resolve;});
  let held=false;
- await barber.route('**/api/agenda',async route=>{
+ await barber.route('**/api/v1/agenda',async route=>{
   if(route.request().method()==='GET'&&!held){
    held=true;resolvePoll();await hold;
    await route.abort().catch(()=>{});return;

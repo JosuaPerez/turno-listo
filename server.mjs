@@ -4,6 +4,7 @@ import {randomBytes} from 'node:crypto';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {maintain,route} from './api.mjs';
+import {withApiHeaders} from './http.mjs';
 import {secureResponse} from './security.mjs';
 import {localRepository} from './local-db.mjs';
 const root=fileURLToPath(new URL('.',import.meta.url));
@@ -24,13 +25,15 @@ setInterval(async()=>{
   finally{maintaining=false;}
 },30000).unref();
 const server=createServer(async (req,res)=>{
+  let pathname='';
   const send=async response=>{
-    const secure=secureResponse(response);
+    const secure=secureResponse(withApiHeaders(pathname,response));
     res.writeHead(secure.status,Object.fromEntries(secure.headers));
     res.end(Buffer.from(await secure.arrayBuffer()));
   };
   try {
     const url=new URL(req.url,'http://'+(req.headers.host||'localhost'));
+    pathname=url.pathname;
     if(Object.hasOwn(assets,url.pathname)){
       const [type,data]=assets[url.pathname];
       return await send(new Response(data,{headers:{'Content-Type':type+'; charset=utf-8'}}));

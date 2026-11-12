@@ -302,3 +302,27 @@ test('consultar una fila estable no escribe y devuelve la revisión',async()=>{
  assert.equal((await (await get()).json()).revision,7);
  assert.equal(reads,2);assert.equal(writes,0);assert.equal(rateWrites,0);
 });
+
+test('v1 y el alias ejecutan la misma acción con cabeceras de transición',async()=>{
+ const repo=localRepository(mkdtempSync(tmpdir()+'/turno-version-'));
+ const env={TURNO_PASSWORD_PEPPER:crypto.randomUUID()};
+ const call=(path,body,session)=>route(new Request('https://example.test'+path,{
+  method:body?'POST':'GET',body:body?JSON.stringify(body):undefined,headers:session?{Cookie:session}:{}
+ }),repo,env);
+ const registration=await call('/api/v1/auth/register',{slug:'version',name:'Versión',email:'version@example.test',password:crypto.randomUUID()});
+ assert.equal(registration.status,200);
+ const cookie=registration.headers.get('Set-Cookie').split(';')[0];
+ for(const [path,deprecated,open] of [['/api/v1/agenda',null,false],['/api/agenda','true',true]]){
+  const result=await call(path,{action:'toggle'},cookie);
+  assert.equal(result.status,200);
+  assert.equal(result.headers.get('X-Turno-API'),'1');
+  assert.equal(result.headers.get('Deprecation'),deprecated);
+  assert.equal((await result.json()).open,open);
+ }
+ const old=await call('/api/agenda');
+ assert.equal(old.status,401);assert.equal(old.headers.get('X-Turno-API'),'1');assert.equal(old.headers.get('Deprecation'),'true');
+ const future=await call('/api/v2/agenda');
+ assert.equal(future.status,404);assert.equal(future.headers.get('X-Turno-API'),'1');assert.equal(future.headers.get('Deprecation'),null);
+ const closed=await route(new Request('https://example.test/api/v1/auth/register',{method:'POST'}),{}, {TURNO_RUNTIME:'worker'});
+ assert.equal(closed.status,503);assert.equal(closed.headers.get('X-Turno-API'),'1');
+});

@@ -26,8 +26,8 @@ function beginSave(status){
 function personalLink(){
  const url=new URL('/b/'+publicSlug,location.origin);url.searchParams.set('t',token);return url.href;
 }
-const adminPath='/api/agenda';
-const publicPath='/api/b/'+encodeURIComponent(publicSlug);
+const adminPath='/api/v1/agenda';
+const publicPath='/api/v1/b/'+encodeURIComponent(publicSlug);
 const values=form=>Object.fromEntries(new FormData(form));
 const msg=(id,text='')=>{$(id).textContent=text;};
 function button(label, action, secondary=false){
@@ -241,7 +241,7 @@ if(resetting){
    event.preventDefault();if(submit.disabled)return;
    submit.disabled=true;msg('resetStatus','Guardando…');
    try{
-    await api('/api/auth/reset',{...values(form),token:code});
+    await api('/api/v1/auth/reset',{...values(form),token:code});
     form.reset();form.hidden=true;msg('resetStatus','Contraseña cambiada. Entra con tu nueva contraseña.');
    }catch(error){msg('resetStatus',error.message);submit.disabled=false;}
  };
@@ -251,7 +251,7 @@ if(resetting){
    const form=$(id);
    form.onsubmit=async e=>{
      e.preventDefault();const done=beginSave('saving');if(!done)return;
-     try{msg('error');await api('/api/auth/'+id,values(form));form.reset();await enter();}
+     try{msg('error');await api('/api/v1/auth/'+id,values(form));form.reset();await enter();}
      catch(error){msg('error',error.message);}
      finally{done();}
    };
@@ -268,7 +268,7 @@ if(resetting){
    const hours={enabled:f.hoursEnabled.checked,from:f.hoursFrom.value,to:f.hoursTo.value,days:[...form.querySelectorAll('input[name=day]:checked')].map(v=>Number(v.value))};
    if(await change('settings',{...values(form),chairs,services,hours,autoSkip:f.autoSkip.checked})){settings(state);msg('shareStatus','Ajustes guardados.');}
  };
- $('logout').onclick=async()=>{try{await api('/api/auth/logout',{});location.reload();}catch(e){msg('error',e.message);}};
+ $('logout').onclick=async()=>{try{await api('/api/v1/auth/logout',{});location.reload();}catch(e){msg('error',e.message);}};
  $('copyStats').onclick=async()=>{try{await navigator.clipboard.writeText(state.stats.message);msg('statsStatus','Resumen copiado.');}catch{msg('statsStatus',state.stats.message);}};
  $('download').onclick=markQr;
  $('shareWa').onclick=markQr;
