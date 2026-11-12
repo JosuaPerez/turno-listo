@@ -17,7 +17,10 @@ export function summarize(s,now=Date.now()){
   const today=localDate(now), start=today.getTime()-(today.getUTCHours()*3600000+today.getUTCMinutes()*60000+today.getUTCSeconds()*1000+today.getUTCMilliseconds())+4*3600000;
   const week=start-((today.getUTCDay()+6)%7)*86400000;
   const logs=s.history.filter(e=>e.at>=week&&e.at<=now), served=logs.filter(e=>e.outcome==='served');
-  const todayServed=served.filter(e=>e.at>=start).length;
+  const todayEntries=served.filter(e=>e.at>=start);
+  const todayServed=todayEntries.length;
+  const waits=todayEntries.filter(e=>Number.isFinite(e.waitMinutes));
+  const todayWait=waits.length?Math.round(waits.reduce((sum,e)=>sum+e.waitMinutes,0)/waits.length):null;
   const services=s.services.map(service=>{
     const entries=served.filter(e=>e.serviceId===service.id);
     return {name:service.name,count:entries.length,avg:entries.length?Math.round(entries.reduce((sum,e)=>sum+e.minutes,0)/entries.length):null};
@@ -31,5 +34,5 @@ export function summarize(s,now=Date.now()){
   const peakHour=[...peak.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||null;
   const noShows=logs.filter(e=>e.outcome==='no-show').length, exits=logs.filter(e=>e.outcome==='left').length;
   const message='Esta semana atendiste '+served.length+' clientes. '+(peakHour?'Tu hora pico fue '+peakHour+'. ':'')+'Ausencias: '+noShows+'. Salidas de la fila: '+exits+'.';
-  return {today:todayServed,week:served.length,services,peakHour,noShows,exits,message};
+  return {today:todayServed,todayWait,week:served.length,services,peakHour,noShows,exits,message};
 }

@@ -27,6 +27,6 @@ export function predict(s,target,now=Date.now()){
   return Math.min(...chairs.filter(c=>!target||chairAccepts(s,target,c.chair)).map(c=>c.free));
 }
 export function record(s,t,chairId,outcome,now=Date.now()){
-  s.history.push({chairId,serviceId:t.serviceId,outcome,at:now,started:t.started||null,minutes:t.started?Math.max(0.1,(now-t.started)/60000):0});
+  s.history.push({chairId,serviceId:t.serviceId,outcome,at:now,waitMinutes:t.joined&&t.started?Math.max(0,((t.calledAt||t.started)-t.joined)/60000):null,started:t.started||null,minutes:t.started?Math.max(0.1,(now-t.started)/60000):0});
   s.history=s.history.slice(-3000);
 }

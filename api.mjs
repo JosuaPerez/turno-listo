@@ -4,7 +4,7 @@ import {NotificationProvider,enqueueNotice,dispatchNotices} from './notification
 import {firstChair,chairAccepts,nextFor,serviceMinutes,range,predict,record} from './estimates.mjs';
 export const initial = {
   open:true, phone:'', name:'Barbería Turno Listo', slug:'turno-listo',
-  duration:30, queue:[], current:null, notices:[], active:{}, chairs:[firstChair], mode:'shared', history:[], noShowMinutes:5, autoSkip:false, hours:validHours(),
+  duration:30, queue:[], current:null, notices:[], active:{}, chairs:[firstChair], mode:'shared', history:[], qrShared:false, noShowMinutes:5, autoSkip:false, hours:validHours(),
   services:[{id:'corte',name:'Corte',minutes:30},{id:'corte-barba',name:'Corte y barba',minutes:45},{id:'cejas',name:'Cejas',minutes:10}]
 };
 export function newShop(slug,name){return {...structuredClone(initial),slug,name};}
@@ -28,7 +28,7 @@ function publicView(s,token){
   const t=token?s.queue.find(t=>t.token===token):null;
   const active=token?activeTickets(s).find(t=>t.token===token):null;
   const own=t?{position:s.queue.filter(v=>s.mode==='shared'||v.chairId===t.chairId).indexOf(t)+1,range:range(predict(s,t)),status:'waiting'}:active?{status:active.started?'serving':'called',deadline:active.deadline}:null;
-  return {name:s.name,slug:s.slug,services:s.services,chairs:s.chairs,mode:s.mode,hours:s.hours,open:reception(s),busy:!!activeTickets(s).length,waiting:s.queue.length,range:range(predict(s)),phone:s.phone,own};
+  return {name:s.name,slug:s.slug,services:s.services,chairs:s.chairs,mode:s.mode,hours:s.hours,open:reception(s),busy:!!activeTickets(s).length,waiting:s.queue.length,ahead:s.queue.length+activeTickets(s).length,range:range(predict(s)),phone:s.phone,own};
 }
 function refreshNotices(s){
   if(!reception(s)||!activeTickets(s).length)return;
@@ -129,7 +129,7 @@ export async function route(request, repo, env={}, ip='unknown', defer) {
       const minutes=service?.minutes;
       const chairId=s.mode==='individual'?input.chairId:null;
       if(s.mode==='individual'&&!s.chairs.some(c=>c.id===chairId))return fail('Selecciona un barbero.');
-      if(!name||name.length>60||!minutes||((!admin||input.phone)&&!phone))return fail('Revisa el nombre, el WhatsApp y el servicio.');
+      if([...name].length<2||name.length>60||!minutes||((!admin||input.phone)&&!phone))return fail('Revisa el nombre, el WhatsApp y el servicio.');
       if(!admin&&(!reception(s)||input.consent!==true))return fail('La fila está cerrada o falta aceptar el aviso.',409);
       if(s.queue.length>=30)return fail('La fila está llena por ahora.',409);
       if(phone&&allTickets(s).some(t=>t.phone===phone))return fail('Ese WhatsApp ya tiene un turno activo.',409);
@@ -151,6 +151,7 @@ export async function route(request, repo, env={}, ip='unknown', defer) {
       resultToken='';
     }else if(admin){
       switch(input.action){
+        case 'qr-shared':s.qrShared=true;break;
         case 'toggle':s.open=!s.open;break;
         case 'next': {
           const chair=s.chairs.find(c=>c.id===input.chairId);

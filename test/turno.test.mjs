@@ -69,11 +69,15 @@ test('alta, duplicados, aislamiento, concurrencia, avisos, ausencias y privacida
  const hash=await makePassword('otra clave larga de prueba');
  assert.equal(await repo.createAccount({slug:'dos',email:'dos@example.test',hash},newShop('dos','Barbería Dos')),true);
  assert.equal((await req('/api/agenda')).status,401);
+ assert.equal((await action('qr-shared')).data.qrShared,true);
+ assert.equal((await req('/api/agenda',{session:cookie})).data.qrShared,true);
+ assert.equal((await action('add',{name:' A ',serviceId:'corte'})).status,400);
  assert.equal((await req('/api/auth/login',{body:{...credentials,password:'no coincide'}})).status,401);
  const login=await req('/api/auth/login',{body:credentials});assert.equal(login.status,200);
  assert.equal((await req('/api/agenda',{session:login.cookie.split(';')[0]})).data.slug,'uno');
  const join=(name,phone)=>req('/api/b/uno/fila',{body:{name,phone,action:'join',serviceId:'corte',consent:true}});
- assert.equal((await req('/api/b/uno/fila',{body:{action:'join',name:'x',phone:'8095550101',serviceId:'corte'}})).status,409);
+ assert.equal((await req('/api/b/uno/fila',{body:{action:'join',name:'Ax',phone:'8095550101',serviceId:'corte'}})).status,409);
+ assert.equal((await join('A','8095550101')).status,400);
  const first=await join('Ana','809 555 0101'),second=await join('Juan','8295550102');
  assert.equal(first.status,200);assert.equal(second.data.own.position,2);
  assert.equal((await join('Duplicado','+1 (809) 555-0101')).status,409);

@@ -50,7 +50,8 @@ function setOptions(select,options){
  select.replaceChildren(...options.map(([id,label])=>new Option(label,id)));
  if(options.some(([id])=>id===selected))select.value=selected;
 }
-const waitLabel=([min,max])=>max===0?'Sin espera':min+' a '+max+' min';
+const clockLabel=m=>m<60?m+' min':Math.floor(m/60)+' h'+(m%60?' '+m%60+' min':'');
+const waitLabel=([min,max])=>max===0?'Sin espera':clockLabel(min)+' a '+clockLabel(max);
 const money=new Intl.NumberFormat('es-DO',{style:'currency',currency:'DOP',maximumFractionDigits:2});
 function bookingOptions(form,s){
  setOptions(form.elements.serviceId,s.services.map(v=>[v.id,v.name+' · '+v.minutes+' min'+(v.price==null?'':' · '+money.format(v.price))]));
@@ -94,13 +95,13 @@ function publicRender(s){
  }));
  const occupied=s.busy||s.waiting>0;
  msg('tag',!s.open?'Pausada':occupied?'Atendiendo':'Disponible');
- msg('headline',!s.open?'Por ahora no recibimos turnos':occupied?'Hay gente en turno':'Puedes pasar');
+ msg('headline',!s.open?'Por ahora no recibimos turnos':s.range[1]>0?'Hay '+s.ahead+' antes que tú'+' · espera aprox. '+waitLabel(s.range):'Puedes pasar ahora');
  msg('detail',!s.open?'Consulta más tarde o escríbenos por WhatsApp.':occupied?'Anótate y consulta tu posición desde aquí.':'Ahora mismo no hay nadie en la fila.');
  msg('count',s.waiting);msg('estimate',s.open?waitLabel(s.range):'—');
- $('join').hidden=!s.open||!!s.own;
+ $('join').hidden=!s.open||!!s.own;$('joinLink').hidden=$('join').hidden;
  bookingOptions($('join'),s);
  $('own').hidden=!s.own;
- if(s.own)msg('ownText',s.own.status==='waiting'?'Posición '+s.own.position+' · '+waitLabel(s.own.range):s.own.status==='called'?'¡Te toca! Pasa a la barbería.':'Ya estás en el sillón.');
+ if(s.own)msg('ownText',s.own.status==='waiting'?'Esperando · Posición '+s.own.position+' · '+waitLabel(s.own.range):s.own.status==='called'?'¡Te toca! Pasa a la barbería.':'En el sillón');
  if(s.own&&token)$('saveTicket').href='https://wa.me/?text='+encodeURIComponent('Mi turno: '+personalLink());
  $('leave').hidden=s.own?.status!=='waiting';
  $('wa').hidden=!s.phone;
@@ -115,7 +116,7 @@ async function refreshPublic(){
  }catch(e){
   if(task.signal.aborted)return;
   msg('headline',e.status===404?'Todavía no hay una barbería en este enlace':'No pudimos consultar la fila');
-  msg('detail',e.message);$('join').hidden=true;
+  msg('detail',e.message);$('join').hidden=true;$('joinLink').hidden=true;
  }finally{if(polling===task)polling=null;}
 }
 async function publicChange(data){
@@ -133,12 +134,17 @@ function renderQr(slug){
  renderedSlug=slug;
  const url=new URL('/b/'+slug,location.origin).href;
  $('nav').href=url;$('customerLink').href=url;msg('customerLink',url);
+ $('shareWa').href=shareUrl(url);
  const qr=qrcode(0,'M');qr.addData(url);qr.make();
  const canvas=$('qr'), pixels=10, margin=4, size=qr.getModuleCount();
  canvas.width=canvas.height=(size+2*margin)*pixels;
  const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#000';
  for(let r=0;r<size;r++)for(let c=0;c<size;c++)if(qr.isDark(r,c))ctx.fillRect((c+margin)*pixels,(r+margin)*pixels,pixels,pixels);
  $('download').href=canvas.toDataURL('image/png');$('download').download=slug+'-qr.png';
+}
+const shareUrl=url=>'https://wa.me/?text='+encodeURIComponent('Anótate en la fila de la barbería: '+url);
+function markQr(){
+ if(state&&!state.qrShared)void change('qr-shared');
 }
 function render(s){
  state=s;$('login').hidden=true;$('registerCard').hidden=true;$('controls').hidden=false;
@@ -147,11 +153,8 @@ function render(s){
  $('chairs').replaceChildren(...s.chairs.map(chair=>{
    const t=s.active[chair.id], card=element('div',null,'card');
    card.append(element('h2',chair.name),element('p',t?(t.name||'Cliente sin nombre'):'Sillón libre'));
-   const next=button('Llamar al siguiente',()=>change('next',{chairId:chair.id}));
-   next.disabled=!s.queue.some(v=>s.mode==='shared'||v.chairId===chair.id);
-   if(!t)card.append(next);
-   else if(t.started)card.append(button('Terminar corte',()=>change('finish',{id:t.id,chairId:chair.id})));
-   else{
+   if(t?.started)card.append(button('Terminar corte',()=>change('finish',{id:t.id,chairId:chair.id})));
+   else if(t){
      const timer=element('p',null,'sub');timer.dataset.deadline=t.deadline;card.append(timer);
      const fields={id:t.id,chairId:chair.id}, actions=element('div',null,'actions');
      actions.append(button('Llegó · Empezar corte',()=>change('start',fields)),
@@ -161,12 +164,21 @@ function render(s){
    }
    return card;
  }));
+ const eligible=s.chairs.filter(chair=>!s.active[chair.id]&&s.queue.some(v=>s.mode==='shared'||v.chairId===chair.id));
+ const nextButtons=eligible.map(chair=>button(s.chairs.length===1?'Llamar al siguiente':'Llamar · '+chair.name,()=>change('next',{chairId:chair.id})));
+ if(!nextButtons.length){const empty=button(s.queue.length?'Sillones ocupados':'Nadie en espera',()=>{});empty.disabled=true;nextButtons.push(empty);}
+ $('nextBar').replaceChildren(...nextButtons);
  refreshTimers();
  msg('queueHeading','En espera ('+s.queue.length+')');
  $('queue').replaceChildren(...s.queue.map((t,i)=>{
    const li=element('li',null,'row');li.append(element('span',(i+1)+'. '+t.name+' · '+t.minutes+' min'),button('Quitar',()=>change('remove',{id:t.id}),true));return li;
  }));
- if(!s.queue.length)$('queue').append(element('li','Nadie en espera.','quiet'));
+ if(!s.queue.length){
+  const li=element('li','Comparte tu QR para que tus clientes se anoten.','quiet');
+  const link=element('a','Compartir por WhatsApp','btn secondary');
+  link.href=shareUrl(new URL('/b/'+s.slug,location.origin).href);link.target='_blank';link.rel='noopener noreferrer';link.onclick=markQr;
+  li.append(element('div',null,'actions'));li.lastChild.append(link);$('queue').append(li);
+ }
  bookingOptions($('add'),s);
  const notices=$('notices');notices.replaceChildren();
  for(const n of s.notices){
@@ -178,12 +190,15 @@ function render(s){
  }
  $('noticeCard').hidden=!s.notices.length;
  const st=s.stats;
+ msg('todaySummary','Hoy: '+st.today+' atendidos · espera promedio '+(st.todayWait==null?'—':st.todayWait+' min'));
  $('stats').replaceChildren(element('p','Atendidos hoy: '+st.today+' · Esta semana: '+st.week),
    element('p','Ausencias: '+st.noShows+' · Salieron de la fila: '+st.exits),
    element('p','Hora pico: '+(st.peakHour||'Por calcular')),
    ...st.services.map(v=>element('p',v.name+' · '+(v.avg==null?'Sin cortes registrados':v.avg+' min en promedio')+' · '+v.count+' atendidos')));
  $('statsWa').href='https://wa.me/?text='+encodeURIComponent(st.message);
  renderQr(s.slug);
+ $('share').classList.toggle('promoted',!s.qrShared);
+ if(!s.qrShared)$('share').open=true;
 }
 function refreshTimers(){
  for(const el of document.querySelectorAll('[data-deadline]')){
@@ -212,7 +227,7 @@ async function change(action,fields={}){
  finally{done();}
 }
 if(admin){
- $('admin').hidden=false;$('nav').href='/';msg('nav','Vista de clientes');
+ $('admin').hidden=false;$('nav').hidden=false;$('barberFooter').hidden=true;document.body.classList.add('admin-page');
  for(const id of ['login','register']){
    const form=$(id);
    form.onsubmit=async e=>{
@@ -237,7 +252,9 @@ if(admin){
  };
  $('logout').onclick=async()=>{try{await api('/api/auth/logout',{});location.reload();}catch(e){msg('error',e.message);}};
  $('copyStats').onclick=async()=>{try{await navigator.clipboard.writeText(state.stats.message);msg('statsStatus','Resumen copiado.');}catch{msg('statsStatus',state.stats.message);}};
- $('copyLink').onclick=async()=>{const link=$('customerLink').href;try{await navigator.clipboard.writeText(link);msg('shareStatus','Enlace copiado.');}catch{msg('shareStatus',link);}};
+ $('download').onclick=markQr;
+ $('shareWa').onclick=markQr;
+ $('copyLink').onclick=async()=>{const link=$('customerLink').href;try{await navigator.clipboard.writeText(link);msg('shareStatus','Enlace copiado.');markQr();}catch{msg('shareStatus',link);}};
  enter();
  setInterval(refreshTimers,1000);setInterval(refreshAdmin,5000);
 }else{
