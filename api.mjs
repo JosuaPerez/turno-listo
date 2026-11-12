@@ -2,21 +2,14 @@ import {validHours,reception,summarize} from './stats.mjs';
 import {getAccount,authRoute,parseBody,allowed} from './auth.mjs';
 import {NotificationProvider,enqueueNotice,dispatchNotices} from './notifications.mjs';
 import {firstChair,chairAccepts,nextFor,serviceMinutes,range,predict,record} from './estimates.mjs';
-export const initial = {
-  open:true, phone:'', name:'Barbería Turno Listo', slug:'turno-listo',
-  duration:30, queue:[], current:null, notices:[], active:{}, chairs:[firstChair], mode:'shared', history:[], qrShared:false, noShowMinutes:5, autoSkip:false, hours:validHours(),
-  services:[{id:'corte',name:'Corte',minutes:30},{id:'corte-barba',name:'Corte y barba',minutes:45},{id:'cejas',name:'Cejas',minutes:10}]
-};
-export function newShop(slug,name){return {...structuredClone(initial),slug,name};}
-export const clean = (v,n) => typeof v==='string' ? v.trim().slice(0,n+1) : '';
+import {initial,newShop} from './shop.mjs';
+import {clean,json,fail,ticket} from './http.mjs';
+export {initial,newShop};
 export function phoneNumber(value) {
   const digits=clean(value,24).replace(/\D/g,'');
   const number=digits.length===10?'1'+digits:digits;
   return /^1(?:809|829|849)\d{7}$/.test(number)?number:'';
 }
-export const json = (value,status=200,headers={}) => Response.json(value,{status,headers:{'Cache-Control':'no-store',...headers}});
-export const fail = (error,status=400) => json({error},status);
-export const ticket = () => crypto.randomUUID().replaceAll('-','')+crypto.randomUUID().replaceAll('-','');
 const activeTickets=s=>Object.values(s.active);
 const allTickets=s=>[...s.queue,...activeTickets(s)];
 function normalize(s){

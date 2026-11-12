@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {secureResponse} from '../security.mjs';
 import assert from 'node:assert/strict';
 import {mkdtempSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -73,6 +74,10 @@ test('alta, duplicados, aislamiento, concurrencia, avisos, ausencias y privacida
  assert.equal((await req('/api/agenda',{session:cookie})).data.qrShared,true);
  assert.equal((await action('add',{name:' A ',serviceId:'corte'})).status,400);
  assert.equal((await req('/api/auth/login',{body:{...credentials,password:'no coincide'}})).status,401);
+ const conflict=await req('/api/auth/register',{body:{...credentials,slug:'libre',name:'Otra barbería'}});
+ assert.equal(conflict.status,409);assert.equal(conflict.data.error,'No pudimos crear la cuenta con esos datos.');
+ const occupied=await req('/api/auth/register',{body:{...credentials,email:'otra@example.test',slug:'uno',name:'Otra barbería'}});
+ assert.equal(occupied.status,409);assert.equal(occupied.data.error,'Ese enlace ya está en uso.');
  const login=await req('/api/auth/login',{body:credentials});assert.equal(login.status,200);
  assert.equal((await req('/api/agenda',{session:login.cookie.split(';')[0]})).data.slug,'uno');
  const join=(name,phone)=>req('/api/b/uno/fila',{body:{name,phone,action:'join',serviceId:'corte',consent:true}});
@@ -145,4 +150,18 @@ test('Worker sin invitación bloquea el registro',async()=>{
  const response=await route(new Request('https://example.test/api/auth/register',{method:'POST'}),{}, {TURNO_RUNTIME:'worker'});
  assert.equal(response.status,503);
  assert.equal((await response.json()).error,'El registro no está habilitado');
+});
+
+test('las cabeceras protegen HTML, assets y API sin quitar cookies',()=>{
+ for(const type of ['text/html','text/css','application/json']){
+  const response=secureResponse(new Response('ok',{headers:{'Content-Type':type,'Set-Cookie':'example=1'}}),true);
+  assert.equal(response.headers.get('Content-Type'),type);
+  assert.equal(response.headers.get('Set-Cookie'),'example=1');
+  assert.match(response.headers.get('Content-Security-Policy'),/script-src 'self';.*frame-ancestors 'none'/);
+  assert.equal(response.headers.get('Referrer-Policy'),'no-referrer');
+  assert.equal(response.headers.get('X-Frame-Options'),'DENY');
+  assert.equal(response.headers.get('X-Content-Type-Options'),'nosniff');
+  assert.match(response.headers.get('Strict-Transport-Security'),/max-age=/);
+ }
+ assert.equal(secureResponse(new Response()).headers.has('Strict-Transport-Security'),false);
 });

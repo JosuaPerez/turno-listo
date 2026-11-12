@@ -1,7 +1,8 @@
-import {initial} from './api.mjs';
+import {initial} from './shop.mjs';
 export function repository(db){
   const stmt=(sql,...params)=>db.prepare(sql).bind(...params);
   return {
+    shopExists:slug=>stmt('SELECT 1 FROM shops WHERE slug=?',slug).first(),
     account:email=>stmt('SELECT slug, password_hash FROM shops WHERE email=?',email).first(),
     async createAccount(account,shop){
       const result=await stmt('INSERT OR IGNORE INTO shops(slug,email,password_hash,data,revision) VALUES(?,?,?,?,0)',account.slug,account.email,account.hash,JSON.stringify(shop)).run();
