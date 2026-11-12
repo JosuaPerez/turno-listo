@@ -5,6 +5,9 @@ const html=JSON.stringify(readFileSync('index.html','utf8'));
 const asset=(type,path)=>[type,readFileSync(path,'utf8')];
 const assets=JSON.stringify({
   '/assets/app.js':asset('text/javascript','app.js'),
+  '/assets/shared.js':asset('text/javascript','shared.js'),
+  '/assets/client.js':asset('text/javascript','client.js'),
+  '/assets/admin.js':asset('text/javascript','admin.js'),
   '/assets/qrcode.js':asset('text/javascript','vendor/qrcode.js'),
   '/assets/app.css':asset('text/css','app.css')
 });

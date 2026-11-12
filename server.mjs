@@ -13,6 +13,9 @@ const repo=localRepository();
 const host=env.TURNO_HOST||'127.0.0.1', port=Number(env.PORT||8787);
 const assets={
   '/assets/app.js': ['text/javascript',readFileSync(join(root,'app.js'))],
+  '/assets/shared.js': ['text/javascript',readFileSync(join(root,'shared.js'))],
+  '/assets/client.js': ['text/javascript',readFileSync(join(root,'client.js'))],
+  '/assets/admin.js': ['text/javascript',readFileSync(join(root,'admin.js'))],
   '/assets/qrcode.js': ['text/javascript',readFileSync(join(root,'vendor/qrcode.js'))],
   '/assets/app.css': ['text/css',readFileSync(join(root,'app.css'))]
 };

@@ -1,12 +1,11 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#171915"><title>Turno Listo · Barbería</title>
-<link rel="stylesheet" href="/assets/app.css"><script src="/assets/qrcode.js" defer></script><script src="/assets/app.js" defer></script></head>
+<link rel="stylesheet" href="/assets/app.css"><script type="module" src="/assets/app.js"></script></head>
 <body><header><a class="brand" href="/"><span class="mark" aria-hidden="true"></span>Turno Listo</a><a id="nav" class="nav" href="/" hidden>Vista de clientes</a></header>
 <main><section id="resetView" hidden><h1>Nueva contraseña</h1><form id="resetForm" class="card lock"><label>Contraseña nueva<input name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label><button>Guardar contraseña</button></form><p id="resetStatus" role="status"></p><a class="btn secondary" href="/barbero">Volver al panel</a></section>
 <section id="client" hidden>
 <div class="place" id="shopName">Barbería · Santo Domingo</div><h1>¿Puedo pasar?</h1>
 <div class="card hero" aria-live="polite"><span class="tag" id="tag">Consultando</span><strong id="headline">Cargando la fila</strong><p id="detail"></p></div>
-<div class="grid"><div class="card metric"><strong id="count">—</strong><span>En espera</span></div><div class="card metric"><strong id="estimate">—</strong><span>Espera si te anotas ahora</span></div></div>
 <a class="btn join-action" id="joinLink" href="#join" hidden>Anotarme</a>
 <form class="card" id="join" hidden><h2>Anótate en la fila</h2>
 <label>Nombre<input name="name" required minlength="2" maxlength="60" autocomplete="given-name"></label>
@@ -19,19 +18,72 @@
 <a hidden id="wa" class="btn secondary" target="_blank" rel="noopener">Escribir por WhatsApp</a>
 </section>
 <section id="admin" hidden>
-<div class="place" id="adminName">Turno Listo · Santo Domingo</div><h1>Mi fila</h1>
+<h1 id="accessHeading">Panel del barbero</h1>
 <form class="card lock" id="login"><h2>Entra a tu agenda</h2><label>Correo<input name="email" type="email" autocomplete="username" maxlength="150" required></label><label>Contraseña<input name="password" type="password" maxlength="128" autocomplete="current-password" required></label><button>Entrar</button></form>
 <details class="card lock" id="forgot"><summary>Olvidé mi contraseña</summary><p>Pídele al operador de Turno Listo un enlace de recuperación e indícale el correo de tu cuenta. El enlace vence en 30 minutos.</p></details><details class="card lock" id="registerCard"><summary>Crear una cuenta para mi barbería</summary><form id="register"><label>Nombre de la barbería<input name="name" maxlength="60" required></label><label>Dirección del enlace<input name="slug" maxlength="48" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="mi-barberia" required></label><label>Correo<input name="email" type="email" autocomplete="username" maxlength="150" required></label><label>Contraseña<input name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label><label>Código de registro (si te dieron uno)<input name="invite" type="password" maxlength="128"></label><button>Crear barbería</button></form></details>
 <p id="saving" class="save-status" role="status"></p><p class="notice" id="error" role="status"></p>
-<div id="controls" hidden><p id="todaySummary" class="today-summary"></p><details class="card" id="share"><summary>Enlace y QR de la barbería</summary><p>Pega este QR en tu puerta o espejo.</p><p><a id="customerLink"></a></p><canvas id="qr" class="qr" aria-label="Código QR del enlace público"></canvas><div class="actions"><a class="btn secondary" id="download" download="turno-listo-qr.png">Descargar QR</a><a id="shareWa" class="btn secondary" target="_blank" rel="noopener noreferrer">Compartir por WhatsApp</a><button class="secondary" id="copyLink">Copiar enlace</button></div><p id="shareStatus" role="status"></p></details>
-<div class="card row"><div><h2>Recepción</h2><span id="shop" class="sub"></span></div><button id="toggle" class="secondary"></button></div>
-<div id="chairs"></div><div id="nextBar" class="next-bar" aria-label="Llamar al siguiente"></div>
-<div class="card" id="noticeCard" hidden><h2>Avisos por WhatsApp</h2><ul id="notices" class="list"></ul></div>
-<div class="card"><h2 id="queueHeading">En espera</h2><ul id="queue" class="list"></ul></div>
-<details class="card"><summary>Agregar a alguien sin celular</summary>
-<form id="add"><label>Nombre o apodo<input name="name" required minlength="2" maxlength="60"></label><label>WhatsApp (opcional)<input name="phone" type="tel" maxlength="24"></label><label>Servicio<select name="serviceId" required></select></label><label class="chairField" hidden>Barbero<select name="chairId"></select></label><button>Agregar a la fila</button></form></details>
 
-<details class="card" id="settingsCard"><summary>Ajustes</summary><form id="settings"><label>Nombre de la barbería<input name="name" maxlength="60" required></label><label>WhatsApp de la barbería<input name="phone" type="tel" maxlength="24"></label><label>Tipo de fila<select name="mode"><option value="shared">Una fila para todos</option><option value="individual">Una fila por barbero</option></select></label><h3>Sillones</h3><div id="chairSettings"></div><button type="button" id="addChair" class="secondary">Añadir sillón</button><h3>Servicios</h3><div id="serviceSettings"></div><button type="button" id="addService" class="secondary">Añadir servicio</button><h3>Horario de recepción</h3><label class="consent"><input name="hoursEnabled" type="checkbox"><span>Cerrar la fila fuera del horario</span></label><div class="grid"><label>Abre<input name="hoursFrom" type="time"></label><label>Cierra<input name="hoursTo" type="time"></label></div><fieldset id="hoursDays"><legend>Días abiertos</legend></fieldset><label>Minutos para que llegue el cliente<input name="noShowMinutes" type="number" min="1" max="30" required></label><label class="consent"><input name="autoSkip" type="checkbox"><span>Quitar el turno automáticamente al vencer el tiempo</span></label><p><button>Guardar ajustes</button></p></form></details>
-<details class="card"><summary>Estadísticas</summary><div id="stats"></div><div class="actions"><a id="statsWa" class="btn secondary" target="_blank" rel="noopener">Compartir resumen por WhatsApp</a><button id="copyStats" class="secondary">Copiar resumen</button></div><p id="statsStatus" role="status"></p></details>
-<button id="logout" class="secondary">Cerrar sesión</button></div>
+<div id="controls" hidden>
+ <div class="panel-header"><h1 id="adminName"></h1><button id="toggle" type="button" class="reception-chip" aria-pressed="false"><span id="shop"></span></button></div>
+ <section id="panel-fila" role="tabpanel" aria-labelledby="tab-fila">
+  <div id="todaySummary" class="metrics"></div>
+  <div class="qr-banner card" id="qrBanner" hidden><strong>Comparte tu QR</strong><button id="showQr" type="button" class="secondary">Ver QR</button><button id="dismissQr" type="button" class="icon secondary" aria-label="Cerrar aviso del QR">×</button></div>
+  <div class="queue-layout">
+   <div id="chairs" class="chairs"></div>
+   <div>
+    <section class="card notice-card" id="noticeCard" hidden><h2>Avisos por WhatsApp</h2><ul id="notices" class="list"></ul></section>
+    <section class="card"><h2 id="queueHeading">En espera</h2><ul id="queue" class="list"></ul></section>
+    <section class="card"><h2>Agregar sin celular</h2><form id="add">
+     <div class="add-row">
+      <label><span>Nombre</span><input name="name" required minlength="2" maxlength="60"></label>
+      <label><span>Servicio</span><select name="serviceId" required></select></label>
+      <label class="chairField" hidden><span>Barbero</span><select name="chairId"></select></label>
+      <button>Agregar</button>
+     </div>
+     <details class="optional-phone"><summary>+ WhatsApp</summary><label>WhatsApp (opcional)<input name="phone" type="tel" maxlength="24"></label></details>
+    </form></section>
+   </div>
+  </div>
+  <div id="nextBar" class="panel-dock next-bar" aria-label="Llamar al siguiente" hidden></div>
+ </section>
+ <section id="panel-compartir" role="tabpanel" aria-labelledby="tab-compartir" hidden>
+  <h2 class="panel-title">Compartir</h2>
+  <div class="card share-card" id="share"><p>Pega este QR en tu puerta o espejo.</p><canvas id="qr" class="qr" aria-label="Código QR del enlace público"></canvas><p><a id="customerLink"></a></p><div class="actions"><a class="btn secondary" id="download" download="turno-listo-qr.png">Descargar QR</a><a id="shareWa" class="btn" target="_blank" rel="noopener noreferrer">Compartir por WhatsApp</a><button type="button" class="secondary" id="copyLink">Copiar enlace</button></div><p id="shareStatus" class="feedback" role="status"></p></div>
+ </section>
+ <section id="panel-estadisticas" role="tabpanel" aria-labelledby="tab-estadisticas" hidden>
+  <h2 class="panel-title">Estadísticas</h2>
+  <div id="stats"></div><div class="actions"><a id="statsWa" class="btn secondary" target="_blank" rel="noopener">Compartir resumen por WhatsApp</a><button type="button" id="copyStats" class="secondary">Copiar resumen</button></div><p id="statsStatus" class="feedback" role="status"></p>
+ </section>
+ <section id="panel-ajustes" role="tabpanel" aria-labelledby="tab-ajustes" hidden>
+  <h2 class="panel-title">Ajustes</h2>
+  <form id="settings">
+   <details class="card settings-section" open><summary>General</summary>
+    <label>Nombre de la barbería<input name="name" maxlength="60" required></label>
+    <label>WhatsApp de la barbería<input name="phone" type="tel" maxlength="24"></label>
+    <div class="arrival-row"><label>Minutos de llegada<input name="noShowMinutes" type="number" min="1" max="30" required></label><label class="check-control"><input name="autoSkip" type="checkbox"><span>Quitar automáticamente</span></label></div>
+   </details>
+   <details class="card settings-section" id="chairSection"><summary>Sillones</summary>
+    <label>Tipo de fila<select name="mode"><option value="shared">Una fila para todos</option><option value="individual">Una fila por barbero</option></select></label>
+    <div id="chairSettings" class="editor-list"></div><button type="button" id="addChair" class="secondary">Añadir sillón</button>
+   </details>
+   <details class="card settings-section" id="serviceSection"><summary>Servicios</summary>
+    <div class="service-editor editor-head" aria-hidden="true"><span>Nombre</span><span>Min</span><span>RD$</span></div>
+    <div id="serviceSettings" class="editor-list"></div><button type="button" id="addService" class="secondary">Añadir servicio</button>
+   </details>
+   <details class="card settings-section" id="hoursSection"><summary>Horario</summary>
+    <label class="check-control"><input name="hoursEnabled" type="checkbox"><span>Cerrar la fila fuera del horario</span></label>
+    <div class="grid hours-row"><label>Abre<input name="hoursFrom" type="time"></label><label>Cierra<input name="hoursTo" type="time"></label></div>
+    <fieldset id="hoursDays"><legend>Días abiertos</legend><div id="dayChips"></div></fieldset>
+   </details>
+   <div class="panel-dock settings-dock"><span id="settingsStatus" role="status"></span><button id="saveSettings" disabled>Guardar ajustes</button></div>
+  </form>
+  <details class="card settings-section" id="accountSection"><summary>Cuenta</summary><button id="logout" type="button" class="secondary">Cerrar sesión</button></details>
+ </section>
+ <nav class="panel-tabs" role="tablist" aria-label="Panel del barbero" id="panelTabs">
+  <button type="button" role="tab" id="tab-fila" aria-controls="panel-fila" aria-selected="true">Fila</button>
+  <button type="button" role="tab" id="tab-compartir" aria-controls="panel-compartir" aria-selected="false" tabindex="-1">Compartir</button>
+  <button type="button" role="tab" id="tab-estadisticas" aria-controls="panel-estadisticas" aria-selected="false" tabindex="-1">Estadísticas</button>
+  <button type="button" role="tab" id="tab-ajustes" aria-controls="panel-ajustes" aria-selected="false" tabindex="-1">Ajustes</button>
+ </nav>
+</div>
 </section></main><footer>La espera es aproximada. La fila se actualiza sola. <a id="barberFooter" class="footer-link" href="/barbero">Soy barbero</a></footer></body></html>

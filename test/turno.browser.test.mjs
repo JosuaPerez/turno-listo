@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {existsSync} from 'node:fs';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdir,mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
@@ -66,13 +66,54 @@ async function observe(page,errors){
  });
 }
 
-test('barbero y cliente completan el flujo sin recargar y el polling se reanuda', {timeout:45000},async t=>{
+async function tab(page,name){
+ const control=page.getByRole('tab',{name,exact:true});
+ await control.click();
+ await page.waitForFunction(id=>document.getElementById(id)?.getAttribute('aria-selected')==='true',await control.getAttribute('id'));
+}
+
+async function capturePanels(barber,browser,base){
+ const output=process.env.TURNO_SCREENSHOTS_DIR;
+ if(!output)return;
+ await mkdir(output,{recursive:true});
+ await barber.getByRole('button',{name:'Llegó · Empezar corte'}).click();
+ await text(barber,'#chairs','En el sillón');
+ for(const name of ['Joel Ramírez','Daniel Ortiz']){
+  const r=await barber.request.post(base+'/api/v1/agenda',{data:{action:'add',name,serviceId:'corte-barba'}});
+  assert.equal(r.status(),200);
+ }
+ await text(barber,'#queueHeading','En espera (3)');
+ const visitor=await browser.newPage({viewport:{width:360,height:740}});
+ await visitor.goto(base+'/b/barberia-prueba');
+ await text(visitor,'#headline','espera aprox.');
+ for(const [width,height] of [[360,740],[390,844]]){
+  const size=width+'x'+height;
+  await barber.setViewportSize({width,height});
+  await visitor.setViewportSize({width,height});
+  for(const [name,slug] of [['Fila','fila'],['Compartir','compartir'],['Estadísticas','estadisticas'],['Ajustes','ajustes']]){
+   await tab(barber,name);
+   if(slug==='compartir')await barber.waitForFunction(()=>document.getElementById('download').getAttribute('href')?.startsWith('data:image/png'));
+   if(slug==='ajustes')await barber.locator('#panel-ajustes').evaluate(panel=>{
+    panel.querySelector('details').open=false;
+    panel.querySelector('#serviceSection').open=true;
+    panel.querySelector('#hoursSection').open=true;
+   });
+   await barber.evaluate(()=>window.scrollTo(0,0));
+   await barber.screenshot({path:join(output,size+'-'+slug+'.png'),animations:'disabled'});
+  }
+  await visitor.screenshot({path:join(output,size+'-cliente.png'),animations:'disabled'});
+ }
+}
+
+test('barbero y cliente completan el flujo sin recargar y el polling se reanuda', {timeout:65000},async t=>{
  const browser=await startBrowser(t);
  if(!browser)return;
  const base=await startServer(t);
 
  const barber=await browser.newPage({viewport:{width:390,height:844}});
- const client=await browser.newPage({viewport:{width:390,height:844}});
+ const client=await browser.newPage({viewport:{width:360,height:740}});
+ const clientAssets=[];
+ client.on('request',request=>clientAssets.push(new URL(request.url()).pathname));
  const errors=[];
  await observe(barber,errors);await observe(client,errors);
  const response=await barber.goto(base+'/barbero');
@@ -97,10 +138,34 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  await enabled(barber,'#toggle');
  assert.equal(await barber.evaluate(()=>performance.timeOrigin),initialDocument);
  await barber.locator('#toggle').click();
- await text(barber,'#shop','Recepción pausada');
+ await text(barber,'#shop','Pausada');
  await barber.locator('#toggle').click();
- await text(barber,'#shop','Recibiendo turnos');
+ await text(barber,'#shop','Recibiendo');
 
+ assert.equal(await barber.locator('#nextBar').isVisible(),false);
+ assert.equal(await barber.locator('#qrBanner').isVisible(),true);
+ assert.match(barber.url(),/#fila$/);
+ await tab(barber,'Compartir');
+ await barber.waitForFunction(()=>document.getElementById('download').getAttribute('href')?.startsWith('data:image/png'));
+ await tab(barber,'Estadísticas');
+ await text(barber,'#stats','Hora pico');
+ await tab(barber,'Ajustes');
+ assert.equal(await barber.locator('#saveSettings').isDisabled(),true);
+ await barber.locator('#serviceSection summary').click();
+ await barber.locator('#serviceSettings input[aria-label="Precio RD$ del servicio"]').first().fill('450');
+ await barber.locator('#hoursSection summary').click();
+ assert.equal(await barber.locator('#dayChips input').count(),7);
+ assert.equal(await barber.locator('#dayChips .day-chip').first().evaluate(el=>el.getBoundingClientRect().height>=44),true);
+ await enabled(barber,'#saveSettings');
+ await barber.locator('#saveSettings').click();
+ await text(barber,'#settingsStatus','Guardado.');
+ assert.equal(await barber.locator('#saveSettings').isDisabled(),true);
+ const saved=await (await barber.request.get(base+'/api/v1/agenda')).json();
+ assert.equal(saved.services[0].price,450);
+ await barber.reload();
+ await barber.locator('#controls').waitFor();
+ assert.equal(await barber.locator('#tab-ajustes').getAttribute('aria-selected'),'true');
+ await barber.locator('#accountSection summary').click();
  await Promise.all([barber.waitForNavigation(),barber.getByRole('button',{name:'Cerrar sesión'}).click()]);
  const loginDocument=await barber.evaluate(()=>performance.timeOrigin);
  await login.getByLabel('Correo').fill(email);
@@ -112,6 +177,11 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
 
  await client.goto(base+'/b/barberia-prueba');
  await text(client,'#headline','Puedes pasar ahora');
+ assert.deepEqual(await client.evaluate(()=>{
+  const positions=['.hero','#joinLink','#join','#publicHours'].map(id=>document.querySelector(id).getBoundingClientRect().top);
+  return [positions.every((y,i)=>!i||y>positions[i-1]),window.innerWidth,!!document.getElementById('count')];
+ }),[true,360,false]);
+ assert.equal(clientAssets.some(path=>/\/(qrcode|admin)\.js$/.test(path)),false);
  const joinForm=client.locator('#join');
  await joinForm.getByLabel('Nombre',{exact:true}).fill('Cliente Prueba');
  await joinForm.getByLabel('WhatsApp',{exact:true}).fill('8095550101');
@@ -119,7 +189,17 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  await joinForm.getByRole('checkbox').check();
  await joinForm.getByRole('button',{name:'Anotarme'}).click();
  await text(client,'#ownText','Posición 1');
+ await tab(barber,'Fila');
  await text(barber,'#queue','Cliente Prueba');
+ assert.equal(await barber.locator('#nextBar').isVisible(),true);
+ await tab(barber,'Compartir');
+ assert.equal(await barber.locator('#nextBar').isVisible(),false);
+ await tab(barber,'Ajustes');
+ assert.equal(await barber.locator('#nextBar').isVisible(),false);
+ await tab(barber,'Estadísticas');
+ assert.equal(await barber.locator('#nextBar').isVisible(),false);
+ await tab(barber,'Fila');
+ assert.equal(await barber.locator('#nextBar').isVisible(),true);
 
  // Hold a real GET from the refresh timer while the barber submits the POST.
  let resolvePoll, releasePoll;
@@ -154,9 +234,11 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
 
  assert.equal(await barber.evaluate(()=>performance.timeOrigin),loginDocument);
  assert.match(await barber.locator('#download').getAttribute('href'),/^data:image\/png/);
- assert.equal(await barber.locator('#nextBar').evaluate(el=>getComputedStyle(el).position),'fixed');
+ assert.equal(await barber.locator('#panelTabs').evaluate(el=>getComputedStyle(el).position),'fixed');
+ assert.equal(await barber.locator('#nextBar').isVisible(),false);
  assert.equal(await client.locator('.hero').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(218, 255, 135)');
  assert.match(response.headers()['content-security-policy'],/style-src 'self';/);
  for(const page of [barber,client,second])assert.deepEqual(await page.evaluate(()=>window.cspViolations),[]);
  assert.deepEqual(errors,[]);
+ await capturePanels(barber,browser,base);
 });
