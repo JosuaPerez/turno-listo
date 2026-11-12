@@ -37,3 +37,9 @@ Al actualizar la demo anterior se descarta su fila de ejemplo y se crea una cuen
 - El horario usa días seleccionados y una franja diaria en hora de Santo Domingo. El barbero puede pausar la recepción en cualquier momento. Las personas que ya están anotadas conservan su lugar.
 - El cliente puede guardar su enlace personal para recuperar la reserva en otro dispositivo. El identificador se elimina de la barra de dirección después de abrirlo. Los nombres y teléfonos no se muestran en la vista de otros clientes. Los datos se eliminan al salir, al pedir su borrado o al cumplir 24 horas en la fila. Las métricas conservan eventos sin nombre ni teléfono. El plazo de limpieza en segundo plano depende del intervalo de mantenimiento.
 - El resumen semanal cuenta desde el lunes. «Ausencias» cuenta cada vez que se marca una ausencia. Si el cliente vuelve al final y falta otra vez, cuenta otra ausencia.
+
+## Recuperar una cuenta
+
+El operador puede generar un enlace que vence a los 30 minutos con `node reset.mjs correo@ejemplo.com`. En producción, envía `POST /api/admin/reset` con un cuerpo JSON que incluya `email` y autorización Bearer con el valor de `TURNO_MAINTENANCE_KEY`. El origen del enlace usa `TURNO_PUBLIC_ORIGIN` si está configurado. Entrégalo únicamente al titular por un canal que ya conozcas.
+
+El servidor guarda el hash del token y, al usarlo, anula las sesiones y los otros enlaces de recuperación de esa cuenta. Más adelante, un proveedor de correo o WhatsApp puede entregar el enlace tras confirmar la titularidad del canal. El formulario público debería dar la misma respuesta exista o no la cuenta.

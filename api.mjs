@@ -2,6 +2,7 @@ import {validHours,reception,summarize} from './stats.mjs';
 import {getAccount,authRoute,parseBody,allowed} from './auth.mjs';
 import {NotificationProvider,enqueueNotice,dispatchNotices} from './notifications.mjs';
 import {firstChair,chairAccepts,nextFor,serviceMinutes,range,predict,record} from './estimates.mjs';
+import {resetRoute} from './password-reset.mjs';
 import {initial,newShop} from './shop.mjs';
 import {clean,json,fail,ticket} from './http.mjs';
 export {initial,newShop};
@@ -91,6 +92,7 @@ export async function route(request, repo, env={}, ip='unknown', defer) {
     if(request.method!=='POST'||!env.TURNO_MAINTENANCE_KEY||request.headers.get('Authorization')!=='Bearer '+env.TURNO_MAINTENANCE_KEY)return fail('Ruta no encontrada.',404);
     await maintain(repo,env);return json({ok:true});
   }
+  if(pathname==='/api/admin/reset'||pathname==='/api/auth/reset')return resetRoute(request,repo,env,ip,pathname==='/api/admin/reset');
   const auth=pathname.match(/^\/api\/auth\/(login|register|logout)$/);
   if(auth)return authRoute(request,repo,env,ip,auth[1]);
   const match=pathname.match(/^\/api\/b\/([a-z0-9-]{1,48})\/(estado|fila)$/);

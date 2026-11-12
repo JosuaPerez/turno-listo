@@ -8,7 +8,7 @@ const assets=JSON.stringify({
   '/assets/qrcode.js':asset('text/javascript','vendor/qrcode.js'),
   '/assets/app.css':asset('text/css','app.css')
 });
-const modules=['estimates','notifications','stats','http','shop','auth','repository','security','api'];
+const modules=['estimates','notifications','stats','http','shop','auth','repository','security','password-reset','api'];
 const identifiers=/^[A-Za-z_$][\w$]*$/;
 function names(list){
   const result=list.split(',').map(v=>v.trim());
@@ -18,7 +18,7 @@ function names(list){
 export function bundle(namesInOrder,read){
   const known=new Map();
   return namesInOrder.map(module=>{
-    if(!identifiers.test(module)||known.has(module))throw Error('Nombre de módulo inválido: '+module);
+    if(!/^[a-z][a-z0-9-]*$/.test(module)||known.has(module))throw Error('Nombre de módulo inválido: '+module);
     const exported=new Set(), code=[];
     const addExport=name=>{
       if(exported.has(name))throw Error('Exportación duplicada en '+module+': '+name);
@@ -30,7 +30,7 @@ export function bundle(namesInOrder,read){
         if(!match||!known.has(match[2]))throw Error('Importación no compatible o fuera de orden en '+module+': '+line);
         const imports=names(match[1]);
         if(imports.some(name=>!known.get(match[2]).has(name)))throw Error('Importación sin exportación en '+module+': '+line);
-        code.push('const {'+imports.join(',')+'}=__'+match[2]+';');
+        code.push('const {'+imports.join(',')+'}=__'+match[2].replaceAll('-','_')+';');
       }else if(line.startsWith('export ')){
         const list=line.trim().match(/^export \{([^}]+)\};$/);
         if(list){names(list[1]).forEach(addExport);continue;}
@@ -40,7 +40,7 @@ export function bundle(namesInOrder,read){
         addExport(match[1]);code.push(declaration);
       }else code.push(line);
     }
-    const block='const __'+module+'=(()=>{\n'+code.join('\n')+'\nreturn Object.freeze({'+[...exported].join(',')+'});\n})();\n';
+    const block='const __'+module.replaceAll('-','_')+'=(()=>{\n'+code.join('\n')+'\nreturn Object.freeze({'+[...exported].join(',')+'});\n})();\n';
     new Script(block,{filename:module+'.bundle.js'});
     known.set(module,exported);
     return block;
@@ -54,7 +54,7 @@ async function handle(request,env,ctx){
     const [type,body]=assets[path];
     return new Response(body,{headers:{'Content-Type':type+'; charset=utf-8'}});
   }
-  if(path==='/'||path==='/barbero'||/^\/b\/[a-z0-9-]+$/.test(path))return new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
+  if(path==='/'||path==='/barbero'||path==='/restablecer'||/^\/b\/[a-z0-9-]+$/.test(path))return new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
   if(path==='/api/auth/register'&&!env.TURNO_INVITE)return __http.fail('El registro no está habilitado',503);
   if(path.startsWith('/api/auth/')&&path!=='/api/auth/logout'&&!env.TURNO_PASSWORD_PEPPER)return __http.fail('El inicio de sesión no está configurado.',503);
   return __api.route(request,__repository.repository(env.DB),{...env,TURNO_RUNTIME:'worker'},request.headers.get('CF-Connecting-IP')||'unknown',ctx.waitUntil.bind(ctx));

@@ -165,3 +165,22 @@ test('las cabeceras protegen HTML, assets y API sin quitar cookies',()=>{
  }
  assert.equal(secureResponse(new Response()).headers.has('Strict-Transport-Security'),false);
 });
+
+test('un enlace de recuperación cambia la contraseña e invalida las sesiones',async()=>{
+ const repo=localRepository(mkdtempSync(tmpdir()+'/turno-reset-'));
+ const env={TURNO_MAINTENANCE_KEY:crypto.randomUUID(),TURNO_PASSWORD_PEPPER:crypto.randomUUID()};
+ const password=crypto.randomUUID(), next=crypto.randomUUID(), email='reset@example.test';
+ const req=(path,body,headers={})=>route(new Request('https://example.test'+path,{method:body?'POST':'GET',body:body?JSON.stringify(body):undefined,headers}),repo,env);
+ const register=await req('/api/auth/register',{slug:'reset',name:'Reset',email,password});
+ assert.equal(register.status,200);
+ const session=register.headers.get('Set-Cookie').split(';')[0];
+ assert.equal((await req('/api/admin/reset',{email})).status,404);
+ const issue=await req('/api/admin/reset',{email},{Authorization:'Bearer '+env.TURNO_MAINTENANCE_KEY});
+ const {link,expires}=await issue.json();
+ assert.ok(expires-Date.now()>29*60000);
+ const token=new URLSearchParams(new URL(link).hash.slice(1)).get('t');
+ assert.equal((await req('/api/auth/reset',{token,password:next})).status,200);
+ assert.equal((await req('/api/agenda',null,{Cookie:session})).status,401);
+ assert.equal((await req('/api/auth/login',{email,password})).status,401);
+ assert.equal((await req('/api/auth/login',{email,password:next})).status,200);
+});

@@ -35,7 +35,7 @@ createServer(async (req,res)=>{
       const [type,data]=assets[url.pathname];
       return await send(new Response(data,{headers:{'Content-Type':type+'; charset=utf-8'}}));
     }
-    if(url.pathname==='/'||url.pathname==='/barbero'||/^\/b\/[a-z0-9-]+$/.test(url.pathname)){
+    if(url.pathname==='/'||url.pathname==='/barbero'||url.pathname==='/restablecer'||/^\/b\/[a-z0-9-]+$/.test(url.pathname)){
       return await send(new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}}));
     }
     const chunks=[];let size=0;

@@ -8,7 +8,21 @@ export function repository(db){
       const result=await stmt('INSERT OR IGNORE INTO shops(slug,email,password_hash,data,revision) VALUES(?,?,?,?,0)',account.slug,account.email,account.hash,JSON.stringify(shop)).run();
       return result.meta.changes===1;
     },
-    createSession:(hash,slug,expires)=>stmt('INSERT INTO sessions(hash,slug,expires) VALUES(?,?,?)',hash,slug,expires).run(),
+    async createSession(hash,slug,expires,passwordHash){
+      const result=await stmt('INSERT INTO sessions(hash,slug,expires) SELECT ?,slug,? FROM shops WHERE slug=? AND password_hash=?',hash,expires,slug,passwordHash).run();
+      return result.meta.changes===1;
+    },
+    createReset:(hash,slug,expires)=>stmt('INSERT INTO password_resets(hash,slug,expires) VALUES(?,?,?)',hash,slug,expires).run(),
+    resetActive:(hash,now)=>stmt('SELECT 1 FROM password_resets WHERE hash=? AND expires>?',hash,now).first(),
+    async consumeReset(hash,passwordHash,now){
+      const valid='(SELECT slug FROM password_resets WHERE hash=? AND expires>?)';
+      const [update]=await db.batch([
+        stmt('UPDATE shops SET password_hash=? WHERE slug='+valid,passwordHash,hash,now),
+        stmt('DELETE FROM sessions WHERE slug='+valid,hash,now),
+        stmt('DELETE FROM password_resets WHERE slug='+valid,hash,now)
+      ]);
+      return update.meta.changes===1;
+    },
     session:(hash,now)=>stmt('SELECT slug FROM sessions WHERE hash=? AND expires>?',hash,now).first(),
     deleteSession:hash=>stmt('DELETE FROM sessions WHERE hash=?',hash).run(),
     async rate(bucket,expires){
@@ -17,6 +31,7 @@ export function repository(db){
     async sweep(now=Date.now()){
       await stmt('DELETE FROM rate_limits WHERE expires<=?',now).run();
       await stmt('DELETE FROM sessions WHERE expires<=?',now).run();
+      await stmt('DELETE FROM password_resets WHERE expires<=?',now).run();
     },
     async shops(){
       return (await db.prepare('SELECT slug FROM shops ORDER BY slug').bind().all()).results.map(row=>row.slug);

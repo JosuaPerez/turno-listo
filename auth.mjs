@@ -82,17 +82,18 @@ export async function authRoute(request,repo,env,ip,path){
     const slug=clean(data.slug,48), name=clean(data.name,60);
     if(env.TURNO_INVITE && data.invite!==env.TURNO_INVITE)return fail('El código de registro no es válido.',403);
     if(password.length<12||!slugPattern.test(slug)||slug.length>48||!name||name.length>60)return fail('Usa un nombre, una dirección válida y una contraseña de 12 caracteres o más.');
-    const inserted=await repo.createAccount({slug,email,hash:await makePassword(password,env.TURNO_PASSWORD_PEPPER)},newShop(slug,name));
+    const hash=await makePassword(password,env.TURNO_PASSWORD_PEPPER);
+    const inserted=await repo.createAccount({slug,email,hash},newShop(slug,name));
     if(!inserted){
       if(await repo.shopExists(slug))return fail('Ese enlace ya está en uso.',409);
       return fail('No pudimos crear la cuenta con esos datos.',409);
     }
-    account={slug};
+    account={slug,password_hash:hash};
   }else{
     account=await repo.account(email);
     if(!await verifyPassword(password,account?.password_hash,env.TURNO_PASSWORD_PEPPER))return fail('Correo o contraseña incorrectos.',401);
   }
   const token=hex(bytes(32));
-  await repo.createSession(await digest(token),account.slug,Date.now()+sessionLife*1000);
+  if(!await repo.createSession(await digest(token),account.slug,Date.now()+sessionLife*1000,account.password_hash))return fail('Vuelve a iniciar sesión.',401);
   return json({ok:true,slug:account.slug},200,{'Set-Cookie':sessionCookie(token,sessionLife,secure)});
 }

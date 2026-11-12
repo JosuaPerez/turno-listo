@@ -1,9 +1,10 @@
 const $=id=>document.getElementById(id);
 const admin=location.pathname==='/barbero';
+const resetting=location.pathname==='/restablecer';
 const publicSlug=location.pathname.split('/')[2]||'turno-listo';
 const tokenKey='turno-ticket:'+publicSlug;
 let token=localStorage.getItem(tokenKey)||'', state, saving=false, polling, renderedSlug;
-if(!admin){
+if(!admin&&!resetting){
  const url=new URL(location.href), personal=url.searchParams.get('t');
  if(/^[a-f0-9]{64}$/.test(personal||'')){
   token=personal;localStorage.setItem(tokenKey,token);
@@ -147,7 +148,7 @@ function markQr(){
  if(state&&!state.qrShared)void change('qr-shared');
 }
 function render(s){
- state=s;$('login').hidden=true;$('registerCard').hidden=true;$('controls').hidden=false;
+ state=s;$('login').hidden=true;$('registerCard').hidden=true;$('forgot').hidden=true;$('controls').hidden=false;
  msg('adminName',s.name);msg('shop',s.receiving?'Recibiendo turnos':s.open?'Fuera de horario':'Recepción pausada');
  msg('toggle',s.open?'Pausar recepción':'Reabrir recepción');
  $('chairs').replaceChildren(...s.chairs.map(chair=>{
@@ -226,7 +227,21 @@ async function change(action,fields={}){
  catch(e){msg('error',e.message);return false;}
  finally{done();}
 }
-if(admin){
+if(resetting){
+ $('resetView').hidden=false;$('barberFooter').hidden=true;
+ const url=new URL(location.href), code=new URLSearchParams(url.hash.slice(1)).get('t');
+ url.hash='';history.replaceState(null,'',url);
+ const form=$('resetForm'), submit=form.querySelector('button');
+ if(!/^[a-f0-9]{64}$/.test(code||'')){form.hidden=true;msg('resetStatus','Pídele al operador un enlace nuevo.');}
+ form.onsubmit=async event=>{
+   event.preventDefault();if(submit.disabled)return;
+   submit.disabled=true;msg('resetStatus','Guardando…');
+   try{
+    await api('/api/auth/reset',{...values(form),token:code});
+    form.reset();form.hidden=true;msg('resetStatus','Contraseña cambiada. Entra con tu nueva contraseña.');
+   }catch(error){msg('resetStatus',error.message);submit.disabled=false;}
+ };
+}else if(admin){
  $('admin').hidden=false;$('nav').hidden=false;$('barberFooter').hidden=true;document.body.classList.add('admin-page');
  for(const id of ['login','register']){
    const form=$(id);

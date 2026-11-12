@@ -21,5 +21,13 @@ export function localRepository(dir=process.env.TURNO_DATA||join(root,'.data')){
   return repository({prepare(sql){return {bind(...params){
     const stmt=db.prepare(sql);
     return {first:()=>stmt.get(...params)||null,all:()=>({results:stmt.all(...params)}),run:()=>({meta:stmt.run(...params)})};
-  }};}});
+  }};},
+  batch(statements){
+    db.exec('BEGIN IMMEDIATE');
+    try{
+      const results=statements.map(statement=>statement.run());
+      db.exec('COMMIT');return results;
+    }catch(error){db.exec('ROLLBACK');throw error;}
+  }});
+
 }
