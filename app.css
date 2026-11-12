@@ -87,3 +87,15 @@ label{margin:8px 0}fieldset{border:0;padding:0;margin:0;min-width:0}select{font:
 #stats .card p { margin:0; }
 
 .new-turn-notice { position:fixed; z-index:10; inset:8px 12px auto; margin:0 auto; max-width:480px; padding:12px; border:1px solid var(--lime); border-radius:12px; color:var(--lime); background:#22291a; font-weight:750; pointer-events:none; }
+
+#poster { display:none; }
+@media print {
+ @page { size:auto; margin:12mm; }
+ html, body { background:white; color:black; color-scheme:light; }
+ body > :not(#poster) { display:none !important; }
+ #poster { display:block; max-width:180mm; margin:0 auto; text-align:center; break-inside:avoid; }
+ #poster h1 { font-size:32pt; letter-spacing:normal; }
+ #poster p { font-size:17pt; overflow-wrap:anywhere; }
+ #poster img { display:block; width:min(135mm,100%); margin:8mm auto; }
+ #poster small { font-size:11pt; }
+}

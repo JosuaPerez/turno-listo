@@ -153,6 +153,12 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  assert.match(barber.url(),/#fila$/);
  await tab(barber,'Compartir');
  await barber.waitForFunction(()=>document.getElementById('download').getAttribute('href')?.startsWith('data:image/png'));
+ await barber.emulateMedia({media:'print'});
+ assert.equal(await barber.locator('#poster').isVisible(),true);
+ assert.equal(await barber.locator('#posterQr').evaluate(img=>img.complete&&img.naturalWidth>0),true);
+ assert.equal(await barber.locator('#panelTabs').isVisible(),false);
+ if(process.env.TURNO_SCREENSHOTS_DIR)await barber.screenshot({path:join(process.env.TURNO_SCREENSHOTS_DIR,'3-afiche.png')});
+ await barber.emulateMedia({media:null});
  await tab(barber,'Resumen');
  await text(barber,'#stats','Hora pico');
  await tab(barber,'Ajustes');

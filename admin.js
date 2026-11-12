@@ -101,7 +101,7 @@ async function renderQr(slug){
   const ctx=canvas.getContext('2d');
   ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#000';
   for(let r=0;r<size;r++)for(let c=0;c<size;c++)if(qr.isDark(r,c))ctx.fillRect((c+margin)*pixels,(r+margin)*pixels,pixels,pixels);
-  $('download').href=canvas.toDataURL('image/png');$('download').download=slug+'-qr.png';
+  $('download').href=canvas.toDataURL('image/png');$('posterQr').src=$('download').href;$('download').download=slug+'-qr.png';
   qrSlug=slug;
  }catch(error){msg('shareStatus',error.message);}
 }
@@ -213,7 +213,7 @@ function render(s){
  state=s;
  for(const id of ['accessHeading','login','registerCard','forgot'])$(id).hidden=true;
  $('controls').hidden=false;
- msg('adminName',s.name);
+ msg('adminName',s.name);msg('posterShop',s.name);msg('posterUrl',customerUrl(s.slug));
 
  msg('shop',s.receiving?'Recibiendo':s.open?'Fuera de horario':'Pausada');
  $('toggle').setAttribute('aria-pressed',String(s.open));
@@ -362,6 +362,7 @@ export function startAdmin(){
  };
  $('logout').onclick=async()=>{try{await api('/api/v1/auth/logout',{});location.reload();}catch(e){msg('error',e.message);}};
  $('copyStats').onclick=()=>copy(state.stats.message,'statsStatus');
+ $('printPoster').onclick=async()=>{await renderQr(state.slug);if(qrSlug===state.slug)window.print();};
  $('download').onclick=markQr;$('shareWa').onclick=markQr;
  $('copyLink').onclick=()=>copy($('customerLink').href,'shareStatus',markQr);
  $('turnSound').checked=soundEnabled();
