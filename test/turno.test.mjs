@@ -5,7 +5,7 @@ import {mkdtempSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {route,newShop} from '../api.mjs';
 import {localRepository} from '../local-db.mjs';
-import {predict,range,serviceMinutes} from '../estimates.mjs';
+import {predict,range,serviceMinutes,record} from '../estimates.mjs';
 import {validHours,reception,summarize} from '../stats.mjs';
 import {makePassword,verifyPassword} from '../auth.mjs';
 
@@ -183,4 +183,20 @@ test('un enlace de recuperación cambia la contraseña e invalida las sesiones',
  assert.equal((await req('/api/agenda',null,{Cookie:session})).status,401);
  assert.equal((await req('/api/auth/login',{email,password})).status,401);
  assert.equal((await req('/api/auth/login',{email,password:next})).status,200);
+});
+test('ingresos estimados usan el precio al atender y el historial no conserva datos personales',()=>{
+ const now=Date.parse('2026-11-10T15:00:00Z'), s=newShop('cortes','Cortes');
+ const t={id:crypto.randomUUID(),name:'Cliente Privado',phone:'18095550101',token:crypto.randomUUID(),serviceId:'corte',started:now-30*60000,joined:now-40*60000};
+ record(s,t,'principal','served',now-86400000);
+ assert.equal(summarize(s,now).week_revenue,null);
+ assert.doesNotMatch(summarize(s,now).message,/Ingresos/);
+ s.services[0].price=350.25;
+ record(s,t,'principal','served',now);
+ s.services[0].price=900;
+ record(s,t,'principal','no-show',now);
+ const result=summarize(s,now);
+ assert.equal(result.today_revenue,350.25);assert.equal(result.week_revenue,350.25);
+ assert.match(result.message,/Ingresos estimados: RD\$ 350.25/);
+ assert.equal(s.history[1].serviceName,'Corte');
+ for(const entry of s.history)for(const key of ['name','phone','token','id'])assert.equal(Object.hasOwn(entry,key),false);
 });

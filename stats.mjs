@@ -13,12 +13,18 @@ export function reception(s,now=Date.now()){
   const d=localDate(now), time=String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0');
   return s.hours.days.includes(d.getUTCDay())&&time>=s.hours.from&&time<s.hours.to;
 }
+function estimatedRevenue(entries){
+  const priced=entries.filter(e=>Number.isFinite(e.price));
+  return priced.length?priced.reduce((sum,e)=>sum+Math.round(e.price*100),0)/100:null;
+}
+const rd=new Intl.NumberFormat('es-DO',{minimumFractionDigits:2,maximumFractionDigits:2});
 export function summarize(s,now=Date.now()){
   const today=localDate(now), start=today.getTime()-(today.getUTCHours()*3600000+today.getUTCMinutes()*60000+today.getUTCSeconds()*1000+today.getUTCMilliseconds())+4*3600000;
   const week=start-((today.getUTCDay()+6)%7)*86400000;
   const logs=s.history.filter(e=>e.at>=week&&e.at<=now), served=logs.filter(e=>e.outcome==='served');
   const todayEntries=served.filter(e=>e.at>=start);
   const todayServed=todayEntries.length;
+  const today_revenue=estimatedRevenue(todayEntries), week_revenue=estimatedRevenue(served);
   const waits=todayEntries.filter(e=>Number.isFinite(e.waitMinutes));
   const todayWait=waits.length?Math.round(waits.reduce((sum,e)=>sum+e.waitMinutes,0)/waits.length):null;
   const services=s.services.map(service=>{
@@ -33,6 +39,6 @@ export function summarize(s,now=Date.now()){
   }
   const peakHour=[...peak.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||null;
   const noShows=logs.filter(e=>e.outcome==='no-show').length, exits=logs.filter(e=>e.outcome==='left').length;
-  const message='Esta semana atendiste '+served.length+' clientes. '+(peakHour?'Tu hora pico fue '+peakHour+'. ':'')+'Ausencias: '+noShows+'. Salidas de la fila: '+exits+'.';
-  return {today:todayServed,todayWait,week:served.length,services,peakHour,noShows,exits,message};
+  const message='Esta semana atendiste '+served.length+' clientes. '+(peakHour?'Tu hora pico fue '+peakHour+'. ':'')+(week_revenue===null?'':'Ingresos estimados: RD$ '+rd.format(week_revenue)+'. ')+'Ausencias: '+noShows+'. Salidas de la fila: '+exits+'.';
+  return {today:todayServed,todayWait,today_revenue,week_revenue,week:served.length,services,peakHour,noShows,exits,message};
 }

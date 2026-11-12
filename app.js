@@ -54,6 +54,7 @@ function setOptions(select,options){
 const clockLabel=m=>m<60?m+' min':Math.floor(m/60)+' h'+(m%60?' '+m%60+' min':'');
 const waitLabel=([min,max])=>max===0?'Sin espera':clockLabel(min)+' a '+clockLabel(max);
 const money=new Intl.NumberFormat('es-DO',{style:'currency',currency:'DOP',maximumFractionDigits:2});
+const rd=new Intl.NumberFormat('es-DO',{minimumFractionDigits:2,maximumFractionDigits:2});
 function bookingOptions(form,s){
  setOptions(form.elements.serviceId,s.services.map(v=>[v.id,v.name+' · '+v.minutes+' min'+(v.price==null?'':' · '+money.format(v.price))]));
  setOptions(form.elements.chairId,s.chairs.map(v=>[v.id,v.name]));
@@ -191,8 +192,9 @@ function render(s){
  }
  $('noticeCard').hidden=!s.notices.length;
  const st=s.stats;
- msg('todaySummary','Hoy: '+st.today+' atendidos · espera promedio '+(st.todayWait==null?'—':st.todayWait+' min'));
+ msg('todaySummary','Hoy: '+st.today+' atendidos · espera promedio '+(st.todayWait==null?'—':st.todayWait+' min')+(st.today_revenue==null?'':' · RD$ '+rd.format(st.today_revenue)));
  $('stats').replaceChildren(element('p','Atendidos hoy: '+st.today+' · Esta semana: '+st.week),
+   ...(st.week_revenue==null?[]:[element('p','Ingresos estimados esta semana: RD$ '+rd.format(st.week_revenue))]),
    element('p','Ausencias: '+st.noShows+' · Salieron de la fila: '+st.exits),
    element('p','Hora pico: '+(st.peakHour||'Por calcular')),
    ...st.services.map(v=>element('p',v.name+' · '+(v.avg==null?'Sin cortes registrados':v.avg+' min en promedio')+' · '+v.count+' atendidos')));
