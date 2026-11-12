@@ -116,6 +116,11 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  const clientAssets=[];
  client.on('request',request=>clientAssets.push(new URL(request.url()).pathname));
  const errors=[];
+ await barber.addInitScript(()=>{
+  window.turnBeeps=0;
+  const original=OscillatorNode.prototype.start;
+  OscillatorNode.prototype.start=function(...args){window.turnBeeps++;return original.apply(this,args);};
+ });
  await observe(barber,errors);await observe(client,errors);
  const response=await barber.goto(base+'/barbero');
  const login=barber.locator('#login');
@@ -222,6 +227,10 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
   assert.match(icon.headers()['content-type'],/^image\/svg\+xml/);
  }
  assert.equal(clientAssets.some(path=>/\/(qrcode|admin)\.js$/.test(path)),false);
+ await tab(barber,'Ajustes');
+ await barber.locator('#accountSection summary').click();
+ await barber.locator('#turnSound').uncheck();
+ await tab(barber,'Resumen');
  const joinForm=client.locator('#join');
  await joinForm.getByLabel('Nombre',{exact:true}).fill('Cliente Prueba');
  await joinForm.getByLabel('WhatsApp',{exact:true}).fill('8095550101');
@@ -229,7 +238,12 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  await joinForm.getByRole('checkbox').check();
  await joinForm.getByRole('button',{name:'Anotarme'}).click();
  await text(client,'#ownText','Posición 1');
+ await text(barber,'#newTurnNotice','Se anotó Cliente Prueba');
+ assert.equal(await barber.title(),'(1) Turno Listo');
+ assert.equal(await barber.evaluate(()=>window.turnBeeps),0);
+ if(process.env.TURNO_SCREENSHOTS_DIR)await barber.screenshot({path:join(process.env.TURNO_SCREENSHOTS_DIR,'2-aviso.png')});
  await tab(barber,'Fila');
+ assert.equal(await barber.title(),'Turno Listo');
  await text(barber,'#queue','Cliente Prueba');
  assert.equal(await barber.locator('#nextBar').isVisible(),true);
  await tab(barber,'Compartir');

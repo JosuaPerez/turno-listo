@@ -6,6 +6,36 @@ const dayNames=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sáb
 const localDay=new Intl.DateTimeFormat('es-DO',{timeZone:'America/Santo_Domingo',dateStyle:'short'});
 const gate=saves($('admin'),'saving');
 let state, selected='fila', settingsSnapshot, settingsDirty=false, qrPromise, qrSlug;
+let audio, unread=0, noticeTimer;
+const soundKey='turno-new-turn-sound';
+function soundEnabled(){
+ try{return localStorage.getItem(soundKey)!=='off';}catch{return true;}
+}
+function unlockAudio(){
+ if(!soundEnabled())return;
+ const Context=globalThis.AudioContext||globalThis.webkitAudioContext;
+ if(!Context)return;
+ try{audio??=new Context();if(audio.state==='suspended')void audio.resume().catch(()=>{});}catch{}
+}
+function updateTitle(){
+ if(selected==='fila'&&!document.hidden)unread=0;
+ document.title=unread?'('+unread+') Turno Listo':'Turno Listo';
+}
+function announceTurns(added){
+ if(!added.length)return;
+ unread+=added.length;
+ updateTitle();
+ msg('newTurnNotice',added.length===1?'Se anotó '+added[0].name:'Se anotaron '+added.length+' clientes');
+ $('newTurnNotice').hidden=false;
+ clearTimeout(noticeTimer);
+ noticeTimer=setTimeout(()=>{$('newTurnNotice').hidden=true;},4500);
+ try{navigator.vibrate?.(100);}catch{}
+ if(!soundEnabled()||audio?.state!=='running')return;
+ const tone=audio.createOscillator(), volume=audio.createGain();
+ tone.frequency.value=740;volume.gain.value=.12;
+ tone.connect(volume);volume.connect(audio.destination);
+ tone.start();tone.stop(audio.currentTime+.15);
+}
 const currency=value=>'RD$ '+rd.format(value??0);
 const shareUrl=url=>'https://wa.me/?text='+encodeURIComponent('Anótate en la fila de la barbería: '+url);
 const customerUrl=slug=>new URL('/b/'+slug,location.origin).href;
@@ -19,6 +49,7 @@ function selectTab(){
  if(next!==key)history.replaceState(null,'','#fila');
  if(selected!==next)window.scrollTo(0,0);
  selected=next;
+ updateTitle();
  for(const tab of tabs){
   $('panel-'+tab).hidden=tab!==selected;
   $('tab-'+tab).setAttribute('aria-selected',String(tab===selected));
@@ -183,7 +214,7 @@ function render(s){
  for(const id of ['accessHeading','login','registerCard','forgot'])$(id).hidden=true;
  $('controls').hidden=false;
  msg('adminName',s.name);
- document.title=s.name+' · Turno Listo';
+
  msg('shop',s.receiving?'Recibiendo':s.open?'Fuera de horario':'Pausada');
  $('toggle').setAttribute('aria-pressed',String(s.open));
  $('toggle').classList.toggle('receiving',s.receiving);
@@ -276,7 +307,11 @@ async function refreshAdmin(){
  const task=gate.beginPoll();if(!task)return;
  try{
   const s=await api(adminPath,undefined,task.signal);
-  if(!task.signal.aborted&&(s.revision!==state.revision||s.receiving!==state.receiving||s.stats.message!==state.stats.message))render(s);
+  if(!task.signal.aborted&&(s.revision!==state.revision||s.receiving!==state.receiving||s.stats.message!==state.stats.message)){
+   const known=new Set([...state.queue,...Object.values(state.active)].map(t=>t.id));
+   const added=s.queue.filter(t=>!known.has(t.id));
+   render(s);announceTurns(added);
+  }
  }catch{}
  finally{gate.endPoll(task);}
 }
@@ -329,5 +364,12 @@ export function startAdmin(){
  $('copyStats').onclick=()=>copy(state.stats.message,'statsStatus');
  $('download').onclick=markQr;$('shareWa').onclick=markQr;
  $('copyLink').onclick=()=>copy($('customerLink').href,'shareStatus',markQr);
+ $('turnSound').checked=soundEnabled();
+ $('turnSound').onchange=()=>{
+  try{localStorage.setItem(soundKey,$('turnSound').checked?'on':'off');}catch{}
+  if($('turnSound').checked)unlockAudio();
+ };
+ document.addEventListener('click',unlockAudio);
+ document.addEventListener('visibilitychange',updateTitle);
  enter();setInterval(refreshTimers,1000);setInterval(refreshAdmin,5000);
 }

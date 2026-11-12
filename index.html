@@ -23,6 +23,7 @@
 <p id="saving" class="save-status" role="status"></p><p class="notice" id="error" role="status"></p>
 
 <div id="controls" hidden>
+ <p id="newTurnNotice" class="new-turn-notice" role="status" hidden></p>
  <div class="panel-header"><h1 id="adminName"></h1><button id="toggle" type="button" class="reception-chip" aria-pressed="false"><span id="shop"></span></button></div>
  <section id="panel-fila" role="tabpanel" aria-labelledby="tab-fila">
   <div id="todaySummary" class="metrics"></div>
@@ -76,7 +77,7 @@
    </details>
    <p id="settingsStatus" class="feedback" role="status"></p>
   </form>
-  <details class="card settings-section" id="accountSection"><summary>Cuenta</summary><button id="logout" type="button" class="secondary">Cerrar sesión</button></details>
+  <details class="card settings-section" id="accountSection"><summary>Cuenta</summary><label class="check-control"><input id="turnSound" type="checkbox"><span>Sonido de nuevos turnos</span></label><button id="logout" type="button" class="secondary">Cerrar sesión</button></details>
  </section>
  <div class="panel-bottom" id="panelBottom">
  <nav class="panel-tabs" role="tablist" aria-label="Panel del barbero" id="panelTabs">

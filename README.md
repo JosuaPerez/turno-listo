@@ -50,3 +50,5 @@ Los ingresos son una estimación, no un registro de cobros. Al terminar un corte
 El plan para separar el JSON de cada barbería en tablas está en [docs/escalado.md](docs/escalado.md). La consulta pública usa un límite en memoria por instancia, y la revisión evita redibujar una fila que no cambió. El reloj y los rangos se comparan aparte.
 
 Consulta [la guía de la API v1](docs/api.md) para usar Turno Listo desde un cliente propio.
+
+El sonido de nuevos turnos se activa después de tocar el panel y se puede apagar por dispositivo en Ajustes > Cuenta. Safari en iPhone no admite vibración web.
