@@ -4,11 +4,11 @@ Fila web para barberías que atienden por llegada. El barbero abre el panel en e
 
 ## Ejecutar en Windows
 
-1. Instala Node.js 22.13 o posterior. No hay dependencias de npm.
+1. Instala Node.js 22.13 o posterior. El servidor y el build no requieren instalar dependencias de npm.
 2. Ejecuta `node server.mjs` o abre **Iniciar demo.cmd**.
 3. Abre http://localhost:8787/barbero, crea tu barbería y entra al panel. En **Enlace y QR de la barbería**, descarga el PNG. Si escaneas un QR que apunta a `localhost`, solo funcionará en ese mismo equipo. Para un piloto, usa el QR de la URL HTTPS desplegada.
 
-`node --test` ejecuta las pruebas. `node build.mjs` prepara `dist/server/index.js` para Cloudflare Workers/Sites. SQLite local aplica las migraciones de `drizzle/` al arrancar. Para una cuenta de prueba opcional, configura `DEMO_EMAIL` y `DEMO_PASSWORD` (12 caracteres o más) y ejecuta `node seed.mjs`. Puedes elegir `DEMO_NAME` y `DEMO_SLUG`.
+Para ejecutar todas las pruebas, corre `npm ci` y luego `node --test`. Playwright es una dependencia de desarrollo. La prueba de navegador usa Microsoft Edge instalado en Windows si está disponible. En otros equipos instala Chromium con `npx playwright install chromium`, o configura `TURNO_BROWSER_EXECUTABLE` con la ruta de un navegador Chromium local. Para ejecutar solo esa prueba, usa `node --test test/turno.browser.test.mjs`. `node build.mjs` prepara `dist/server/index.js` para Cloudflare Workers/Sites. SQLite local aplica las migraciones de `drizzle/` al arrancar. Para una cuenta de prueba opcional, configura `DEMO_EMAIL` y `DEMO_PASSWORD` (12 caracteres o más) y ejecuta `node seed.mjs`. Puedes elegir `DEMO_NAME` y `DEMO_SLUG`.
 
 ## Configuración
 

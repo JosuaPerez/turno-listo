@@ -126,8 +126,8 @@ async function refreshPublic(){
 }
 async function publicChange(data){
  const done=beginSave('publicSaving');if(!done)return;
- msg('publicError');
  try{
+  msg('publicError');
   const s=await api(publicPath+'/fila',data);
   token=s.token||'';if(token)localStorage.setItem(tokenKey,token);else localStorage.removeItem(tokenKey);
   publicRender(s);if(data.action==='join')$('join').reset();if(data.action==='erase')msg('publicError','Borramos tus datos de la fila.');
@@ -227,8 +227,7 @@ async function enter(){
 }
 async function change(action,fields={}){
  const done=beginSave('saving');if(!done)return false;
- msg('error');
- try{render(await api(adminPath,{action,...fields}));return true;}
+ try{msg('error');render(await api(adminPath,{action,...fields}));return true;}
  catch(e){msg('error',e.message);return false;}
  finally{done();}
 }
@@ -252,10 +251,9 @@ if(resetting){
    const form=$(id);
    form.onsubmit=async e=>{
      e.preventDefault();const done=beginSave('saving');if(!done)return;
-     msg('error');
-     try{await api('/api/auth/'+id,values(form));form.reset();await enter();}
+     try{msg('error');await api('/api/auth/'+id,values(form));form.reset();await enter();}
      catch(error){msg('error',error.message);}
-     finally{pending=false;}
+     finally{done();}
    };
  }
  $('toggle').onclick=()=>change('toggle');

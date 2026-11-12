@@ -1,0 +1,148 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {once} from 'node:events';
+import {existsSync} from 'node:fs';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {randomUUID} from 'node:crypto';
+import {chromium} from 'playwright';
+
+const bundledEdge='C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+
+async function startServer(t){
+ const dir=await mkdtemp(join(tmpdir(),'turno-browser-'));
+ const env={...process.env,PORT:'0',TURNO_HOST:'127.0.0.1',TURNO_DATA:dir,TURNO_INVITE:''};
+ delete env.WA_ACCESS_TOKEN;
+ const child=spawn(process.execPath,['server.mjs'],{cwd:new URL('..',import.meta.url),env,stdio:['ignore','pipe','inherit']});
+ t.after(async()=>{
+  if(child.exitCode===null&&child.signalCode===null){
+   const exited=once(child,'exit');child.kill();await exited;
+  }
+  await rm(dir,{recursive:true,force:true,maxRetries:4,retryDelay:100});
+ });
+ const [line]=await Promise.race([
+  once(child.stdout,'data'),
+  once(child,'exit').then(([code])=>{throw Error('El servidor se cerró con código '+code);})
+ ]);
+ const port=line.toString().match(/localhost:(\d+)/)?.[1];
+ assert.ok(Number(port),'El servidor debe anunciar el puerto asignado');
+ return 'http://127.0.0.1:'+port;
+}
+
+async function text(page,selector,fragment){
+ await page.waitForFunction(({selector,fragment})=>document.querySelector(selector)?.textContent.includes(fragment),{selector,fragment});
+}
+
+async function enabled(page,selector){
+ await page.waitForFunction(selector=>{
+  const button=document.querySelector(selector);
+  return button&&!button.disabled;
+ },selector,{timeout:3000});
+}
+
+async function observe(page,errors){
+ page.setDefaultTimeout(12000);
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.addInitScript(()=>{
+  window.cspViolations=[];
+  document.addEventListener('securitypolicyviolation',event=>window.cspViolations.push(event.violatedDirective+': '+event.blockedURI));
+ });
+}
+
+test('barbero y cliente completan el flujo sin recargar y el polling se reanuda', {timeout:45000},async t=>{
+ const base=await startServer(t);
+ const executablePath=process.env.TURNO_BROWSER_EXECUTABLE||(process.platform==='win32'&&existsSync(bundledEdge)?bundledEdge:undefined);
+ const browser=await chromium.launch({executablePath});
+ t.after(()=>browser.close());
+
+ const barber=await browser.newPage({viewport:{width:390,height:844}});
+ const client=await browser.newPage({viewport:{width:390,height:844}});
+ const errors=[];
+ await observe(barber,errors);await observe(client,errors);
+ const response=await barber.goto(base+'/barbero');
+ const login=barber.locator('#login');
+ const initialDocument=await barber.evaluate(()=>performance.timeOrigin);
+ const email='barbero@example.test', password=randomUUID();
+ await login.getByLabel('Correo').fill(email);
+ await login.getByLabel('Contraseña').fill(randomUUID());
+ await login.getByRole('button',{name:'Entrar'}).click();
+ await text(barber,'#error','Correo o contraseña incorrectos');
+ await enabled(barber,'#login button');
+ assert.equal(await barber.locator('#saving').textContent(),'');
+
+ await barber.locator('#registerCard summary').click();
+ const register=barber.locator('#register');
+ await register.getByLabel('Nombre de la barbería').fill('Barbería Prueba');
+ await register.getByLabel('Dirección del enlace').fill('barberia-prueba');
+ await register.getByLabel('Correo').fill(email);
+ await register.getByLabel('Contraseña').fill(password);
+ await register.getByRole('button',{name:'Crear barbería'}).click();
+ await barber.locator('#controls').waitFor();
+ await enabled(barber,'#toggle');
+ assert.equal(await barber.evaluate(()=>performance.timeOrigin),initialDocument);
+ await barber.locator('#toggle').click();
+ await text(barber,'#shop','Recepción pausada');
+ await barber.locator('#toggle').click();
+ await text(barber,'#shop','Recibiendo turnos');
+
+ await Promise.all([barber.waitForNavigation(),barber.getByRole('button',{name:'Cerrar sesión'}).click()]);
+ const loginDocument=await barber.evaluate(()=>performance.timeOrigin);
+ await login.getByLabel('Correo').fill(email);
+ await login.getByLabel('Contraseña').fill(password);
+ await login.getByRole('button',{name:'Entrar'}).click();
+ await barber.locator('#controls').waitFor();
+ await enabled(barber,'#toggle');
+ assert.equal(await barber.evaluate(()=>performance.timeOrigin),loginDocument);
+
+ await client.goto(base+'/b/barberia-prueba');
+ await text(client,'#headline','Puedes pasar ahora');
+ const joinForm=client.locator('#join');
+ await joinForm.getByLabel('Nombre',{exact:true}).fill('Cliente Prueba');
+ await joinForm.getByLabel('WhatsApp',{exact:true}).fill('8095550101');
+ await joinForm.locator('select[name=serviceId]').selectOption('corte');
+ await joinForm.getByRole('checkbox').check();
+ await joinForm.getByRole('button',{name:'Anotarme'}).click();
+ await text(client,'#ownText','Posición 1');
+ await text(barber,'#queue','Cliente Prueba');
+
+ // Hold a real GET from the refresh timer while the barber submits the POST.
+ let resolvePoll, releasePoll;
+ const pollSeen=new Promise(resolve=>{resolvePoll=resolve;});
+ const hold=new Promise(resolve=>{releasePoll=resolve;});
+ let held=false;
+ await barber.route('**/api/agenda',async route=>{
+  if(route.request().method()==='GET'&&!held){
+   held=true;resolvePoll();await hold;
+   await route.abort().catch(()=>{});return;
+  }
+  await route.continue();
+ });
+ await pollSeen;
+ try{
+  await barber.getByRole('button',{name:'Llamar al siguiente'}).click();
+  await barber.getByRole('button',{name:'Llegó · Empezar corte'}).waitFor();
+  assert.equal(await barber.locator('#saving').textContent(),'');
+ }finally{releasePoll();}
+ await text(client,'#ownText','¡Te toca! Pasa a la barbería.');
+ // A new entry on the customer side must reach the barber after the mutation.
+ const second=await browser.newPage({viewport:{width:390,height:844}});
+ await observe(second,errors);
+ await second.goto(base+'/b/barberia-prueba');
+ const nextForm=second.locator('#join');
+ await nextForm.getByLabel('Nombre',{exact:true}).fill('Otra Persona');
+ await nextForm.getByLabel('WhatsApp',{exact:true}).fill('8295550102');
+ await nextForm.getByRole('checkbox').check();
+ await nextForm.getByRole('button',{name:'Anotarme'}).click();
+ await text(second,'#ownText','Posición 1');
+ await text(barber,'#queue','Otra Persona');
+
+ assert.equal(await barber.evaluate(()=>performance.timeOrigin),loginDocument);
+ assert.match(await barber.locator('#download').getAttribute('href'),/^data:image\/png/);
+ assert.equal(await barber.locator('#nextBar').evaluate(el=>getComputedStyle(el).position),'fixed');
+ assert.equal(await client.locator('.hero').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(218, 255, 135)');
+ assert.match(response.headers()['content-security-policy'],/style-src 'self';/);
+ for(const page of [barber,client,second])assert.deepEqual(await page.evaluate(()=>window.cspViolations),[]);
+ assert.deepEqual(errors,[]);
+});

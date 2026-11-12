@@ -23,7 +23,7 @@ setInterval(async()=>{
   try{await maintain(repo,env);}catch{console.error('No se pudo completar el mantenimiento.');}
   finally{maintaining=false;}
 },30000).unref();
-createServer(async (req,res)=>{
+const server=createServer(async (req,res)=>{
   const send=async response=>{
     const secure=secureResponse(response);
     res.writeHead(secure.status,Object.fromEntries(secure.headers));
@@ -48,5 +48,5 @@ createServer(async (req,res)=>{
     await send(response);
   }catch{console.error('Error al procesar la solicitud.');if(!res.headersSent)await send(new Response('Error interno.',{status:500}));}
 }).listen(port,host,()=>{
-  console.log('Crea tu barbería en http://localhost:'+port+'/barbero');
+  console.log('Crea tu barbería en http://localhost:'+server.address().port+'/barbero');
 });
