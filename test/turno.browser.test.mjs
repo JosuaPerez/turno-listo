@@ -7,9 +7,24 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
-import {chromium} from 'playwright';
 
+const browserHelp='Ejecuta npm ci y npx playwright install chromium';
 const bundledEdge='C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+
+async function startBrowser(t){
+ let chromium;
+ try{({chromium}=await import('playwright'));}
+ catch(error){if(error.code!=='ERR_MODULE_NOT_FOUND')throw error;t.skip(browserHelp);return;}
+ const paths=[process.env.TURNO_BROWSER_EXECUTABLE,process.platform==='win32'&&bundledEdge,chromium.executablePath()];
+ for(const executablePath of new Set(paths.filter(path=>path&&existsSync(path)))){
+  try{
+   const browser=await chromium.launch({executablePath});
+   t.after(()=>browser.close());
+   return browser;
+  }catch{}
+ }
+ t.skip(browserHelp);
+}
 
 async function startServer(t){
  const dir=await mkdtemp(join(tmpdir(),'turno-browser-'));
@@ -52,10 +67,9 @@ async function observe(page,errors){
 }
 
 test('barbero y cliente completan el flujo sin recargar y el polling se reanuda', {timeout:45000},async t=>{
+ const browser=await startBrowser(t);
+ if(!browser)return;
  const base=await startServer(t);
- const executablePath=process.env.TURNO_BROWSER_EXECUTABLE||(process.platform==='win32'&&existsSync(bundledEdge)?bundledEdge:undefined);
- const browser=await chromium.launch({executablePath});
- t.after(()=>browser.close());
 
  const barber=await browser.newPage({viewport:{width:390,height:844}});
  const client=await browser.newPage({viewport:{width:390,height:844}});

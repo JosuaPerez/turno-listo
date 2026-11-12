@@ -1,5 +1,10 @@
 {
   "devDependencies": {
     "playwright": "1.65.0"
+  },
+  "scripts": {
+    "test": "node --test test/turno.test.mjs",
+    "test:browser": "node --test test/turno.browser.test.mjs",
+    "test:all": "node --test"
   }
 }

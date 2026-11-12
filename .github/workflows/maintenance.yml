@@ -1,0 +1,23 @@
+name: Mantenimiento de Turno Listo
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  maintenance:
+    if: vars.MAINTENANCE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ejecutar mantenimiento
+        env:
+          TURNO_URL: ${{ secrets.TURNO_URL }}
+          TURNO_MAINTENANCE_KEY: ${{ secrets.TURNO_MAINTENANCE_KEY }}
+        run: |
+          curl --fail-with-body --max-time 30 --silent --show-error --output /dev/null \
+            --request POST "${TURNO_URL%/}/api/v1/maintenance" \
+            --header "Authorization: Bearer ${TURNO_MAINTENANCE_KEY}"
