@@ -6,7 +6,7 @@ const messages={
   called:'Es tu turno, pasa por favor'
 };
 export class NotificationProvider {
-  constructor(env={}){this.env=env;}
+  constructor(env={},fetcher=fetch){this.env=env;this.fetcher=fetcher;}
   get automatic(){
     const e=this.env;
     return Boolean(e.WA_ACCESS_TOKEN&&e.WA_PHONE_NUMBER_ID&&/^v\d+\.\d+$/.test(e.WA_API_VERSION||'')&&e.WA_TEMPLATE_SOON&&e.WA_TEMPLATE_CALLED);
@@ -17,7 +17,7 @@ export class NotificationProvider {
   async send(item){
     if(!this.automatic)return false;
     const e=this.env;
-    const result=await fetch('https://graph.facebook.com/'+e.WA_API_VERSION+'/'+encodeURIComponent(e.WA_PHONE_NUMBER_ID)+'/messages',{
+    const result=await this.fetcher('https://graph.facebook.com/'+e.WA_API_VERSION+'/'+encodeURIComponent(e.WA_PHONE_NUMBER_ID)+'/messages',{
       method:'POST',headers:{Authorization:'Bearer '+e.WA_ACCESS_TOKEN,'Content-Type':'application/json'},
       body:JSON.stringify({messaging_product:'whatsapp',to:item.phone,type:'template',template:{name:item.kind==='soon'?e.WA_TEMPLATE_SOON:e.WA_TEMPLATE_CALLED,language:{code:e.WA_LANGUAGE||'es'}}}),
       signal:AbortSignal.timeout(3500)

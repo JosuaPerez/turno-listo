@@ -48,10 +48,10 @@ function expirePersonal(s,now){
   const old=s.queue.length;
   s.queue=s.queue.filter(t=>t.joined>now-dayMs);
   let changed=old!==s.queue.length;
-  for(const t of activeTickets(s)){
-    if((t.joined||0)<=now-dayMs&&(t.name||t.phone||t.token)){
-      t.name='';t.phone='';t.token='';changed=true;
-    }
+  for(const [chairId,t] of Object.entries(s.active)){
+    if((t.joined||0)>now-dayMs)continue;
+    if(!t.started){delete s.active[chairId];changed=true;continue;}
+    if(t.name||t.phone||t.token){t.name='';t.phone='';t.token='';changed=true;}
   }
   const count=s.notices.length;
   s.notices=s.notices.filter(n=>n.created>now-dayMs&&allTickets(s).some(t=>t.phone&&n.id.startsWith(t.id+':')));

@@ -1,4 +1,6 @@
 import test from 'node:test';
+import {NotificationProvider,dispatchNotices} from '../notifications.mjs';
+import {issueReset} from '../password-reset.mjs';
 import {secureResponse} from '../security.mjs';
 import assert from 'node:assert/strict';
 import {mkdtempSync} from 'node:fs';
@@ -199,4 +201,91 @@ test('ingresos estimados usan el precio al atender y el historial no conserva da
  assert.match(result.message,/Ingresos estimados: RD\$ 350.25/);
  assert.equal(s.history[1].serviceName,'Corte');
  for(const entry of s.history)for(const key of ['name','phone','token','id'])assert.equal(Object.hasOwn(entry,key),false);
+});
+
+test('WhatsApp automático confirma éxito y ofrece modo manual ante rechazo o timeout',async()=>{
+ const env={WA_ACCESS_TOKEN:crypto.randomUUID(),WA_PHONE_NUMBER_ID:'123',WA_API_VERSION:'v1.0',WA_TEMPLATE_SOON:'turno_pronto',WA_TEMPLATE_CALLED:'turno_listo'};
+ for(const [status,expected] of [[200,'sent'],[403,'manual'],['timeout','manual']]){
+  let s={revision:0,notices:[{id:'turno:called',kind:'called',status:'pending',phone:'18095550101'}]},calls=0;
+  const store={
+   read:()=>structuredClone(s),
+   write:(next,revision)=>{if(s.revision!==revision)return false;s=structuredClone(next);return true;}
+  };
+  const provider=new NotificationProvider(env,async(url,options)=>{
+   calls++;
+   assert.match(url,/^https:\/\/graph\.facebook\.com\//);
+   assert.equal(JSON.parse(options.body).template.name,env.WA_TEMPLATE_CALLED);
+   assert.ok(options.signal instanceof AbortSignal);
+   if(status==='timeout')throw new DOMException('Tiempo agotado','TimeoutError');
+   return new Response(null,{status});
+  });
+  await Promise.all([dispatchNotices(store,provider),dispatchNotices(store,provider)]);
+  assert.equal(s.notices[0].status,expected);
+  assert.equal(calls,1);
+ }
+});
+
+test('rechaza ajustes inválidos y evita perder servicios con turnos activos',async()=>{
+ const repo=localRepository(mkdtempSync(tmpdir()+'/turno-settings-'));
+ const env={TURNO_PASSWORD_PEPPER:crypto.randomUUID()};
+ const call=(path,body,cookie)=>route(new Request('https://example.test'+path,{method:body?'POST':'GET',body:body?JSON.stringify(body):undefined,headers:cookie?{Cookie:cookie}:{}}),repo,env);
+ const registered=await call('/api/auth/register',{slug:'ajustes',name:'Ajustes',email:'ajustes@example.test',password:crypto.randomUUID()});
+ const cookie=registered.headers.get('Set-Cookie').split(';')[0];
+ const shop=await (await call('/api/agenda',null,cookie)).json();
+ const settings=fields=>call('/api/agenda',{...shop,action:'settings',...fields},cookie);
+ for(const fields of [
+  {services:[]},{services:[{name:'Corte',minutes:181}]},{services:[{name:'Corte',minutes:30,price:-1}]},
+  {services:Array.from({length:13},(_,i)=>({name:'Servicio '+i,minutes:30}))},
+  {chairs:[]},{chairs:Array.from({length:9},(_,i)=>({name:'Sillón '+i}))},
+  {mode:'invalido'},{hours:{enabled:true,days:[1],from:'19:00',to:'09:00'}},
+  {hours:{enabled:true,days:[7],from:'09:00',to:'19:00'}},{noShowMinutes:31},{phone:'123'}
+ ])assert.equal((await settings(fields)).status,400,JSON.stringify(fields));
+ assert.equal((await settings({services:[{...shop.services[0],price:'350.25'}]})).status,200);
+ assert.equal((await call('/api/agenda',{action:'add',name:'Cliente',serviceId:shop.services[0].id},cookie)).status,200);
+ assert.equal((await settings({services:[{name:'Servicio nuevo',minutes:30}]})).status,409);
+});
+
+test('caducan turnos y avisos sin exponer datos de otras personas',async()=>{
+ const repo=localRepository(mkdtempSync(tmpdir()+'/turno-privacy-'));
+ const s=newShop('privado','Barbería privada'), now=Date.now(), old=now-86400001;
+ const privateToken=()=>crypto.randomUUID().replaceAll('-','')+crypto.randomUUID().replaceAll('-','');
+ const turn=(id,name,phone,joined)=>({id,name,phone,joined,minutes:30,serviceId:'corte',token:privateToken(),soonNotified:true});
+ const first=turn('first','Persona Uno','18095550101',now);
+ const second=turn('second','Persona Dos','18295550102',now);
+ const expired=turn('expired','Persona Vieja','18495550103',old);
+ const called=turn('called','Persona Ausente','18495550104',old);
+ s.queue=[first,second,expired];
+ s.active.principal={...called,deadline:old+300000};
+ s.notices=[
+  {id:'first:soon',kind:'soon',status:'manual',created:old,name:first.name,phone:first.phone},
+  {id:'second:soon',kind:'soon',status:'manual',created:now,name:second.name,phone:second.phone}
+ ];
+ await repo.createAccount({slug:s.slug,email:'privado@example.test',hash:await makePassword(crypto.randomUUID())},s);
+ const view=async token=>route(new Request('http://localhost/api/b/privado/estado',{headers:token?{'X-Turno-Token':token}:{}}),repo);
+ for(const token of ['',first.token]){
+  const response=await view(token), body=await response.text();
+  for(const t of [first,second,expired,called])for(const value of [t.name,t.phone,t.token])assert.equal(body.includes(value),false);
+  assert.equal(JSON.parse(body).own?.position,token?1:undefined);
+ }
+ const remaining=await repo.shop(s.slug).read();
+ assert.deepEqual(remaining.queue.map(t=>t.id),['first','second']);
+ assert.deepEqual(Object.keys(remaining.active),[]);
+ assert.deepEqual(remaining.notices.map(n=>n.id),['second:soon']);
+});
+
+test('restablecimiento caduca, es atómico al reusar y limita intentos',async()=>{
+ const repo=localRepository(mkdtempSync(tmpdir()+'/turno-reset-limits-'));
+ const env={TURNO_PASSWORD_PEPPER:crypto.randomUUID()};
+ const s=newShop('recuperar','Recuperar'), email='recuperar@example.test';
+ await repo.createAccount({slug:s.slug,email,hash:await makePassword(crypto.randomUUID(),env.TURNO_PASSWORD_PEPPER)},s);
+ const origin='https://example.test';
+ const code=async now=>new URLSearchParams(new URL((await issueReset(repo,email,origin,now)).link).hash.slice(1)).get('t');
+ const reset=(token,ip)=>route(new Request(origin+'/api/auth/reset',{method:'POST',body:JSON.stringify({token,password:crypto.randomUUID()})}),repo,env,ip);
+ const expired=await code(Date.now()-30*60000-1);
+ assert.equal((await reset(expired,'192.0.2.1')).status,410);
+ const active=await code(Date.now());
+ const statuses=(await Promise.all([reset(active,'192.0.2.1'),reset(active,'192.0.2.1')])).map(r=>r.status).sort();
+ assert.deepEqual(statuses,[200,410]);
+ for(let i=0;i<8;i++)assert.equal((await reset(expired,'192.0.2.2')).status,410);
+ assert.equal((await reset(expired,'192.0.2.2')).status,429);
 });
