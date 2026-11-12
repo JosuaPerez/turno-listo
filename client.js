@@ -21,7 +21,7 @@ function publicRender(s){
  msg('tag',!s.open?'Pausada':occupied?'Atendiendo':'Disponible');
  msg('headline',!s.open?'Por ahora no recibimos turnos':s.range[1]>0?'Hay '+s.ahead+' antes que tú'+' · espera aprox. '+waitLabel(s.range):'Puedes pasar ahora');
  msg('detail',!s.open?'Consulta más tarde o escríbenos por WhatsApp.':occupied?'Anótate y consulta tu posición desde aquí.':'Ahora mismo no hay nadie en la fila.');
- $('join').hidden=!s.open||!!s.own;$('joinLink').hidden=$('join').hidden;
+ $('join').hidden=!s.open||!!s.own;
  bookingOptions($('join'),s);
  $('own').hidden=!s.own;
  if(s.own)msg('ownText',s.own.status==='waiting'?'Esperando · Posición '+s.own.position+' · '+waitLabel(s.own.range):s.own.status==='called'?'¡Te toca! Pasa a la barbería.':'En el sillón');
@@ -40,7 +40,7 @@ async function refreshPublic(){
   if(task.signal.aborted)return;
   previousPublic=null;
   msg('headline',e.status===404?'Todavía no hay una barbería en este enlace':'No pudimos consultar la fila');
-  msg('detail',e.message);$('join').hidden=true;$('joinLink').hidden=true;
+  msg('detail',e.message);$('join').hidden=true;
  }finally{queueSaves.endPoll(task);}
 }
 async function publicChange(data){

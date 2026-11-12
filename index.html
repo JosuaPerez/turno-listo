@@ -1,18 +1,17 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#171915"><title>Turno Listo · Barbería</title>
-<link rel="stylesheet" href="/assets/app.css"><script type="module" src="/assets/app.js"></script></head>
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg"><link rel="stylesheet" href="/assets/app.css"><script type="module" src="/assets/app.js"></script></head>
 <body><header><a class="brand" href="/"><span class="mark" aria-hidden="true"></span>Turno Listo</a><a id="nav" class="nav" href="/" hidden>Vista de clientes</a></header>
 <main><section id="resetView" hidden><h1>Nueva contraseña</h1><form id="resetForm" class="card lock"><label>Contraseña nueva<input name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label><button>Guardar contraseña</button></form><p id="resetStatus" role="status"></p><a class="btn secondary" href="/barbero">Volver al panel</a></section>
 <section id="client" hidden>
 <div class="place" id="shopName">Barbería · Santo Domingo</div><h1>¿Puedo pasar?</h1>
 <div class="card hero" aria-live="polite"><span class="tag" id="tag">Consultando</span><strong id="headline">Cargando la fila</strong><p id="detail"></p></div>
-<a class="btn join-action" id="joinLink" href="#join" hidden>Anotarme</a>
 <form class="card" id="join" hidden><h2>Anótate en la fila</h2>
 <label>Nombre<input name="name" required minlength="2" maxlength="60" autocomplete="given-name"></label>
 <label>WhatsApp<input name="phone" type="tel" required maxlength="24" autocomplete="tel"></label>
 <label>Servicio<select name="serviceId" required></select></label><label class="chairField" hidden>Barbero<select name="chairId"></select></label>
 <label class="consent"><input name="consent" type="checkbox" required><span>Acepto que la barbería use mi nombre y WhatsApp para manejar mi turno y avisarme. Los datos de la fila se eliminan en 24 horas.</span></label>
-<button>Anotarme</button></form>
+<button class="join-submit">Anotarme</button></form>
 <div class="card" id="own" hidden><h2>Mi turno</h2><p id="ownText"></p><p class="quiet">Guarda tu enlace personal para ver el turno en otro celular. Compártelo solo contigo.</p><div class="actions"><button id="copyTicket" class="secondary">Copiar enlace</button><a id="saveTicket" class="btn secondary" target="_blank" rel="noopener noreferrer">Guardar en mi WhatsApp</a></div><p id="ticketFeedback" class="quiet" role="status"></p><div class="actions"><button class="secondary" id="leave">Salir de la fila</button><button class="secondary" id="erase">Borrar mis datos</button></div></div>
 <div class="card"><h2>Horario y servicios</h2><p id="publicHours" class="sub"></p><ul id="publicServices" class="list"></ul></div><p id="publicSaving" class="save-status" role="status"></p><p class="notice" id="publicError" role="status"></p>
 <a hidden id="wa" class="btn secondary" target="_blank" rel="noopener">Escribir por WhatsApp</a>

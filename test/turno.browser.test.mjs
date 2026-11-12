@@ -198,9 +198,18 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  await client.goto(base+'/b/barberia-prueba');
  await text(client,'#headline','Puedes pasar ahora');
  assert.deepEqual(await client.evaluate(()=>{
-  const positions=['.hero','#joinLink','#join','#publicHours'].map(id=>document.querySelector(id).getBoundingClientRect().top);
+  const positions=['.hero','#join','#join button','#publicHours'].map(id=>document.querySelector(id).getBoundingClientRect().top);
   return [positions.every((y,i)=>!i||y>positions[i-1]),window.innerWidth,!!document.getElementById('count')];
  }),[true,360,false]);
+ assert.equal(await client.getByRole('button',{name:'Anotarme',exact:true}).count(),1);
+ assert.equal(await client.getByRole('link',{name:'Anotarme',exact:true}).count(),0);
+ const iconPath=await client.locator('link[rel=icon]').getAttribute('href');
+ assert.equal(iconPath,'/assets/favicon.svg');
+ for(const path of [iconPath,'/favicon.ico']){
+  const icon=await client.request.get(base+path);
+  assert.equal(icon.status(),200);
+  assert.match(icon.headers()['content-type'],/^image\/svg\+xml/);
+ }
  assert.equal(clientAssets.some(path=>/\/(qrcode|admin)\.js$/.test(path)),false);
  const joinForm=client.locator('#join');
  await joinForm.getByLabel('Nombre',{exact:true}).fill('Cliente Prueba');

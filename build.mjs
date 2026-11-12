@@ -4,6 +4,7 @@ import {Script} from 'node:vm';
 const html=JSON.stringify(readFileSync('index.html','utf8'));
 const asset=(type,path)=>[type,readFileSync(path,'utf8')];
 const assets=JSON.stringify({
+  '/assets/favicon.svg':asset('image/svg+xml','favicon.svg'),
   '/assets/app.js':asset('text/javascript','app.js'),
   '/assets/shared.js':asset('text/javascript','shared.js'),
   '/assets/client.js':asset('text/javascript','client.js'),
@@ -53,6 +54,7 @@ const api=bundle(modules,name=>readFileSync(name+'.mjs','utf8'));
 const worker='const html='+html+', assets='+assets+';\n'+String.raw`
 async function handle(request,env,ctx){
   const path=new URL(request.url).pathname;
+  if(path==='/favicon.ico')return new Response(null,{status:308,headers:{Location:'/assets/favicon.svg'}});
   if(Object.hasOwn(assets,path)){
     const [type,body]=assets[path];
     return new Response(body,{headers:{'Content-Type':type+'; charset=utf-8'}});
