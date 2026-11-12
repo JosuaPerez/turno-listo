@@ -9,7 +9,7 @@ import {route,newShop} from '../api.mjs';
 import {localRepository} from '../local-db.mjs';
 import {predict,range,serviceMinutes,record} from '../estimates.mjs';
 import {validHours,reception,summarize} from '../stats.mjs';
-import {makePassword,verifyPassword} from '../auth.mjs';
+import {makePassword,verifyPassword,digest} from '../auth.mjs';
 
 test('calcula en paralelo, limita la espera a su fila y aprende tras tres cortes',()=>{
  const now=Date.now(),s=newShop('prueba','Prueba');
@@ -325,4 +325,67 @@ test('v1 y el alias ejecutan la misma acción con cabeceras de transición',asyn
  assert.equal(future.status,404);assert.equal(future.headers.get('X-Turno-API'),'1');assert.equal(future.headers.get('Deprecation'),null);
  const closed=await route(new Request('https://example.test/api/v1/auth/register',{method:'POST'}),{}, {TURNO_RUNTIME:'worker'});
  assert.equal(closed.status,503);assert.equal(closed.headers.get('X-Turno-API'),'1');
+});
+
+test('Bearer comparte expiración, revocación y aislamiento con la sesión de la barbería',async()=>{
+ const repo=localRepository(mkdtempSync(tmpdir()+'/turno-bearer-'));
+ const env={TURNO_PASSWORD_PEPPER:crypto.randomUUID()};
+ const origin='https://example.test', outsider='https://otro.example.test';
+ const email='bearer@example.test', password=crypto.randomUUID();
+ const prefix='/api/v1';
+ const call=(path,{body,cookie,bearer,from,turn,ip='192.0.2.11'}={})=>{
+  const headers={};
+  if(cookie)headers.Cookie=cookie;
+  if(bearer!==undefined)headers.Authorization='Bearer '+bearer;
+  if(from)headers.Origin=from;
+  if(turn)headers['X-Turno-Token']=turn;
+  return route(new Request(origin+prefix+path,{method:body?'POST':'GET',body:body?JSON.stringify(body):undefined,headers}),repo,env,ip);
+ };
+ const registered=await call('/auth/register',{body:{slug:'bearer',name:'Barbería Bearer',email,password,token:true}});
+ assert.equal(registered.status,200);
+ const initial=await registered.json();
+ assert.match(initial.token,/^[a-f0-9]{64}$/);
+ assert.equal(typeof initial.expires,'number');
+ assert.ok(initial.expires>Date.now());
+ const web=await call('/auth/login',{body:{email,password}});
+ assert.equal(web.status,200);
+ assert.deepEqual(await web.json(),{ok:true,slug:'bearer'});
+ const cookie=web.headers.get('Set-Cookie').split(';')[0];
+ assert.equal((await call('/agenda',{cookie})).status,200);
+ const native=await call('/auth/login',{body:{email,password,token:true}});
+ assert.equal(native.status,200);
+ const credentials=await native.json(), bearer=credentials.token;
+ const agenda=await call('/agenda',{bearer});
+ assert.equal(agenda.status,200);
+ assert.equal((await agenda.json()).slug,'bearer');
+ assert.equal((await call('/agenda',{cookie,body:{action:'toggle'},from:outsider})).status,403);
+ assert.equal((await call('/agenda',{bearer,cookie,body:{action:'toggle'},from:outsider})).status,200);
+ assert.equal((await call('/agenda',{bearer,cookie,body:{action:'toggle'},from:outsider})).status,200);
+ assert.equal((await call('/auth/login',{bearer,body:{email,password,token:true},from:outsider})).status,403);
+ const fake=crypto.randomUUID().replaceAll('-','').repeat(2);
+ assert.equal((await call('/agenda',{bearer:'inválido',cookie})).status,401);
+ assert.equal((await call('/agenda',{bearer:fake,cookie})).status,401);
+ const account=await repo.account(email);
+ assert.equal(await repo.createSession(await digest(fake),account.slug,Date.now()-1,account.password_hash),true);
+ assert.equal((await call('/agenda',{bearer:fake})).status,401);
+ const joined=await call('/b/bearer/fila',{body:{action:'join',name:'Cliente Prueba',phone:'8095550101',serviceId:'corte',consent:true}});
+ assert.equal(joined.status,200);
+ const {token:turn}=await joined.json();
+ assert.equal((await call('/agenda',{bearer:turn})).status,401);
+ assert.equal((await call('/b/bearer/estado',{bearer})).status,401);
+ assert.equal((await (await call('/b/bearer/estado',{turn:bearer})).json()).own,null);
+ assert.equal((await (await call('/b/bearer/estado',{turn})).json()).own.position,1);
+ assert.equal((await call('/auth/logout',{bearer,cookie,body:{},from:outsider})).status,200);
+ assert.equal((await call('/agenda',{bearer})).status,401);
+ assert.equal((await call('/agenda',{cookie})).status,200);
+ const issued=await issueReset(repo,email,origin);
+ const reset=new URLSearchParams(new URL(issued.link).hash.slice(1)).get('t');
+ assert.equal((await call('/auth/reset',{body:{token:reset,password:crypto.randomUUID()}})).status,200);
+ assert.equal((await call('/agenda',{bearer:initial.token})).status,401);
+ assert.equal((await call('/agenda',{cookie})).status,401);
+ for(let i=0;i<10;i++){
+  const attempt=await call('/auth/login',{body:{email,password,token:i%2===0},ip:'192.0.2.12'});
+  assert.equal(attempt.status,401);
+ }
+ assert.equal((await call('/auth/login',{body:{email,password,token:true},ip:'192.0.2.12'})).status,429);
 });

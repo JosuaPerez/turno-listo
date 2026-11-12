@@ -36,8 +36,15 @@ function sessionCookie(token,maxAge,secure){
 export function readSession(request){
   return (request.headers.get('Cookie')||'').match(/(?:^|;\s*)turno_session=([a-f0-9]{64})(?:;|$)/)?.[1]||'';
 }
+export function readBearer(request){
+  return (request.headers.get('Authorization')||'').match(/^Bearer ([a-f0-9]{64})$/i)?.[1]||'';
+}
+function sessionToken(request){
+  // An explicit Authorization header takes precedence, even if invalid.
+  return request.headers.has('Authorization')?readBearer(request):readSession(request);
+}
 export async function getAccount(request,repo){
-  const token=readSession(request);
+  const token=sessionToken(request);
   return token?repo.session(await digest(token),Date.now()):null;
 }
 export async function parseBody(request){
@@ -67,9 +74,10 @@ export async function authRoute(request,repo,env,ip,path){
   if(path==='register'&&env.TURNO_RUNTIME==='worker'&&!env.TURNO_INVITE)return fail('El registro no está habilitado',503);
   const secure=new URL(request.url).protocol==='https:';
   if(path==='logout'){
-    const t=readSession(request);
+    const bearer=request.headers.has('Authorization'), t=sessionToken(request);
+    if(bearer&&!t)return fail('Token de sesión inválido.',401);
     if(t)await repo.deleteSession(await digest(t));
-    return json({ok:true},200,{'Set-Cookie':sessionCookie('',0,secure)});
+    return json({ok:true},200,bearer?{}:{'Set-Cookie':sessionCookie('',0,secure)});
   }
   if(!['login','register'].includes(path))return fail('Ruta no encontrada.',404);
   if(!await allowed(repo,env,request,'auth:'+path,path==='login'?10:4,15*60000,ip))return fail('Demasiados intentos. Intenta más tarde.',429);
@@ -94,6 +102,9 @@ export async function authRoute(request,repo,env,ip,path){
     if(!await verifyPassword(password,account?.password_hash,env.TURNO_PASSWORD_PEPPER))return fail('Correo o contraseña incorrectos.',401);
   }
   const token=hex(bytes(32));
-  if(!await repo.createSession(await digest(token),account.slug,Date.now()+sessionLife*1000,account.password_hash))return fail('Vuelve a iniciar sesión.',401);
-  return json({ok:true,slug:account.slug},200,{'Set-Cookie':sessionCookie(token,sessionLife,secure)});
+  const expires=Date.now()+sessionLife*1000;
+  if(!await repo.createSession(await digest(token),account.slug,expires,account.password_hash))return fail('Vuelve a iniciar sesión.',401);
+  const result={ok:true,slug:account.slug};
+  if(data.token===true)Object.assign(result,{token,expires});
+  return json(result,200,{'Set-Cookie':sessionCookie(token,sessionLife,secure)});
 }

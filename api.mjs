@@ -1,5 +1,5 @@
 import {validHours,reception,summarize} from './stats.mjs';
-import {getAccount,authRoute,parseBody,allowed} from './auth.mjs';
+import {getAccount,authRoute,parseBody,allowed,readBearer} from './auth.mjs';
 import {NotificationProvider,enqueueNotice,dispatchNotices} from './notifications.mjs';
 import {firstChair,chairAccepts,nextFor,serviceMinutes,range,predict,record} from './estimates.mjs';
 import {resetRoute} from './password-reset.mjs';
@@ -110,7 +110,10 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
     if(pathname.startsWith('/api/auth/')&&pathname!=='/api/auth/logout'&&!env.TURNO_PASSWORD_PEPPER)return fail('El inicio de sesión no está configurado.',503);
   }
   const provider=new NotificationProvider(env);
-  if(request.method==='POST'&&request.headers.get('Origin')&&request.headers.get('Origin')!==url.origin)return fail('Origen no permitido.',403);
+  const operatorPath=pathname==='/api/maintenance'||pathname==='/api/admin/reset';
+  const operatorBearer=operatorPath&&env.TURNO_MAINTENANCE_KEY&&request.headers.get('Authorization')==='Bearer '+env.TURNO_MAINTENANCE_KEY;
+  const sessionBearer=(pathname==='/api/agenda'||pathname==='/api/auth/logout')&&readBearer(request);
+  if(request.method==='POST'&&!operatorBearer&&!sessionBearer&&request.headers.get('Origin')&&request.headers.get('Origin')!==url.origin)return fail('Origen no permitido.',403);
   if(pathname==='/api/maintenance'){
     if(request.method!=='POST'||!env.TURNO_MAINTENANCE_KEY||request.headers.get('Authorization')!=='Bearer '+env.TURNO_MAINTENANCE_KEY)return fail('Ruta no encontrada.',404);
     await maintain(repo,env);return json({ok:true});
@@ -121,6 +124,7 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
   const match=pathname.match(/^\/api\/b\/([a-z0-9-]{1,48})\/(estado|fila)$/);
   const admin=pathname==='/api/agenda';
   if(!match&&!admin)return fail('Ruta no encontrada.',404);
+  if(match&&request.headers.has('Authorization'))return fail('Usa el token de turno para esta ruta.',401);
   const account=admin?await getAccount(request,repo):null;
   if(admin&&!account)return fail('Entra a tu agenda primero.',401);
   if(match){
