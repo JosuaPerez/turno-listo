@@ -3,7 +3,7 @@ const admin=location.pathname==='/barbero';
 const resetting=location.pathname==='/restablecer';
 const publicSlug=location.pathname.split('/')[2]||'turno-listo';
 const tokenKey='turno-ticket:'+publicSlug;
-let token=localStorage.getItem(tokenKey)||'', state, saving=false, polling, renderedSlug;
+let token=localStorage.getItem(tokenKey)||'', state, saving=false, polling, renderedSlug, previousPublic;
 if(!admin&&!resetting){
  const url=new URL(location.href), personal=url.searchParams.get('t');
  if(/^[a-f0-9]{64}$/.test(personal||'')){
@@ -90,6 +90,7 @@ function settings(s){
 const weekdays=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 function priceLabel(v){return v.price==null?'':money.format(v.price);}
 function publicRender(s){
+ previousPublic=publicStamp(s);
  document.title=s.name+' · Turno Listo';msg('shopName',s.name);
  msg('publicHours',s.hours.enabled?s.hours.days.map(d=>weekdays[d]).join(', ')+' · '+s.hours.from+' a '+s.hours.to:'Consulta la disponibilidad de hoy en la fila.');
  $('publicServices').replaceChildren(...s.services.map(v=>{
@@ -109,14 +110,16 @@ function publicRender(s){
  $('wa').hidden=!s.phone;
  if(s.phone)$('wa').href='https://wa.me/'+s.phone+'?text='+encodeURIComponent('Hola, vi la fila de la barbería. ¿Puedo pasar?');
 }
+const publicStamp=s=>JSON.stringify([s.revision,s.open,s.range,s.own]);
 async function refreshPublic(){
  if(saving||polling)return;
  const task=polling=new AbortController();
  try{
   const s=await api(publicPath+'/estado',undefined,task.signal);
-  if(!task.signal.aborted&&!saving)publicRender(s);
+  if(!task.signal.aborted&&!saving&&publicStamp(s)!==previousPublic)publicRender(s);
  }catch(e){
   if(task.signal.aborted)return;
+  previousPublic=null;
   msg('headline',e.status===404?'Todavía no hay una barbería en este enlace':'No pudimos consultar la fila');
   msg('detail',e.message);$('join').hidden=true;$('joinLink').hidden=true;
  }finally{if(polling===task)polling=null;}

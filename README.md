@@ -44,3 +44,5 @@ El operador puede generar un enlace que vence a los 30 minutos con `node reset.m
 
 El servidor guarda el hash del token y, al usarlo, anula las sesiones y los otros enlaces de recuperación de esa cuenta. Más adelante, un proveedor de correo o WhatsApp puede entregar el enlace tras confirmar la titularidad del canal. El formulario público debería dar la misma respuesta exista o no la cuenta.
 Los ingresos son una estimación, no un registro de cobros. Al terminar un corte se guarda el precio configurado en ese momento. Los turnos sin precio y las ausencias quedan fuera de la suma. Si ningún corte del período tiene precio, se omite el total. La espera promedio de hoy mide desde que el cliente se anota hasta que lo llaman.
+
+El plan para separar el JSON de cada barbería en tablas está en [docs/escalado.md](docs/escalado.md). La consulta pública usa un límite en memoria por instancia, y la revisión evita redibujar una fila que no cambió. El reloj y los rangos se comparan aparte.

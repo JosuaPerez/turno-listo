@@ -12,6 +12,7 @@ export function phoneNumber(value) {
   return /^1(?:809|829|849)\d{7}$/.test(number)?number:'';
 }
 const activeTickets=s=>Object.values(s.active);
+const readWindows=new Map();
 const allTickets=s=>[...s.queue,...activeTickets(s)];
 function normalize(s){
   if(!s)return null;
@@ -22,7 +23,7 @@ function publicView(s,token){
   const t=token?s.queue.find(t=>t.token===token):null;
   const active=token?activeTickets(s).find(t=>t.token===token):null;
   const own=t?{position:s.queue.filter(v=>s.mode==='shared'||v.chairId===t.chairId).indexOf(t)+1,range:range(predict(s,t)),status:'waiting'}:active?{status:active.started?'serving':'called',deadline:active.deadline}:null;
-  return {name:s.name,slug:s.slug,services:s.services,chairs:s.chairs,mode:s.mode,hours:s.hours,open:reception(s),busy:!!activeTickets(s).length,waiting:s.queue.length,ahead:s.queue.length+activeTickets(s).length,range:range(predict(s)),phone:s.phone,own};
+  return {revision:s.revision,name:s.name,slug:s.slug,services:s.services,chairs:s.chairs,mode:s.mode,hours:s.hours,open:reception(s),busy:!!activeTickets(s).length,waiting:s.queue.length,ahead:s.queue.length+activeTickets(s).length,range:range(predict(s)),phone:s.phone,own};
 }
 function refreshNotices(s){
   if(!reception(s)||!activeTickets(s).length)return;
@@ -74,7 +75,11 @@ export async function tick(store,provider){
     }
     const count=s.notices.length;
     refreshNotices(s);
-    if(!changed&&s.notices.length===count){await dispatchNotices(store,provider);return normalize(await store.read());}
+    if(!changed&&s.notices.length===count){
+      if(!provider.automatic||!s.notices.some(n=>n.status==='pending'))return s;
+      await dispatchNotices(store,provider);
+      return normalize(await store.read());
+    }
     s.revision=previous.revision+1;
     if(await store.write(s,previous.revision)){await dispatchNotices(store,provider);return normalize(await store.read());}
   }
@@ -83,6 +88,14 @@ export async function tick(store,provider){
 function adminView(s,provider){
   const omitToken=({token,...t})=>t;
   return {...s,receiving:reception(s),stats:summarize(s),queue:s.queue.map(omitToken),active:Object.fromEntries(Object.entries(s.active).map(([id,t])=>[id,omitToken(t)])),notices:s.notices.filter(n=>n.status==='manual'||n.status==='pending'&&!provider.automatic||n.status==='sending'&&Date.now()-n.created>60000).map(n=>provider.present(n))};
+}
+// Public reads are limited per isolate. Writes and authentication keep shared limits.
+function allowPublicRead(slug,ip,now=Date.now()){
+  const key=slug+'\n'+ip, entry=readWindows.get(key);
+  if(entry&&entry.until>now)return ++entry.hits<=300;
+  if(readWindows.size>=4096)readWindows.delete(readWindows.keys().next().value);
+  readWindows.set(key,{hits:1,until:now+60000});
+  return true;
 }
 export async function route(request, repo, env={}, ip='unknown', defer) {
   const provider=new NotificationProvider(env);
@@ -100,7 +113,10 @@ export async function route(request, repo, env={}, ip='unknown', defer) {
   if(!match&&!admin)return fail('Ruta no encontrada.',404);
   const account=admin?await getAccount(request,repo):null;
   if(admin&&!account)return fail('Entra a tu agenda primero.',401);
-  if(match&&!await allowed(repo,env,request,'public:'+match[1]+':'+request.method,request.method==='GET'?300:20,60000,ip))return fail('Demasiadas solicitudes. Intenta en un minuto.',429);
+  if(match){
+    const permitted=request.method==='GET'?allowPublicRead(match[1],ip):await allowed(repo,env,request,'public:'+match[1]+':'+request.method,20,60000,ip);
+    if(!permitted)return fail('Demasiadas solicitudes. Intenta en un minuto.',429);
+  }
   const store=repo.shop(account?.slug||match[1]);
   const raw=request.headers.get('X-Turno-Token')||'';
   const token=/^[a-f0-9]{64}$/.test(raw)?raw:'';

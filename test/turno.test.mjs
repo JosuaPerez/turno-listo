@@ -289,3 +289,16 @@ test('restablecimiento caduca, es atómico al reusar y limita intentos',async()=
  for(let i=0;i<8;i++)assert.equal((await reset(expired,'192.0.2.2')).status,410);
  assert.equal((await reset(expired,'192.0.2.2')).status,429);
 });
+
+test('consultar una fila estable no escribe y devuelve la revisión',async()=>{
+ const s={...newShop('poll','Poll'),revision:7};
+ let reads=0, writes=0, rateWrites=0;
+ const repo={
+  rate:()=>{rateWrites++;return 1;},
+  shop:()=>({read:()=>{reads++;return structuredClone(s);},write:()=>{writes++;return true;}})
+ };
+ const get=()=>route(new Request('https://example.test/api/b/poll/estado'),repo,{},'192.0.2.22');
+ assert.equal((await (await get()).json()).revision,7);
+ assert.equal((await (await get()).json()).revision,7);
+ assert.equal(reads,2);assert.equal(writes,0);assert.equal(rateWrites,0);
+});
