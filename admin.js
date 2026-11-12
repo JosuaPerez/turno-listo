@@ -135,7 +135,11 @@ function renderChairs(s){
   if(t.started)timer.dataset.started=t.started;
   else timer.dataset.deadline=t.deadline;
   const fields={id:t.id,chairId:chair.id}, actions=element('div',null,'actions');
-  if(t.started)actions.append(button('Terminar corte',()=>change('finish',fields)));
+  if(t.started){
+   const eligible=s.queue.some(v=>s.mode==='shared'||v.chairId===chair.id);
+   if(eligible)actions.append(button('Terminar y llamar al siguiente',()=>change('finish-next',fields)));
+   actions.append(button('Terminar corte',()=>change('finish',fields),eligible));
+  }
   else actions.append(button('Llegó · Empezar corte',()=>change('start',fields)),
    button('Mandar al final',()=>change('no-show',{...fields,disposition:'back'}),true),
    button('Quitar',()=>change('no-show',{...fields,disposition:'remove'}),true));

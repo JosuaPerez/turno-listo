@@ -389,3 +389,30 @@ test('Bearer comparte expiración, revocación y aislamiento con la sesión de l
  }
  assert.equal((await call('/auth/login',{body:{email,password,token:true},ip:'192.0.2.12'})).status,429);
 });
+
+test('finish-next termina y llama con una sola revisión en cada modo',async()=>{
+ for(const mode of ['shared','individual','empty']){
+  const repo=localRepository(mkdtempSync(tmpdir()+'/turno-finish-'));
+  const shop=newShop('prueba','Prueba'), now=Date.now();
+  const hash=await makePassword(crypto.randomUUID(),crypto.randomUUID());
+  const credential=crypto.randomUUID().replaceAll('-','').repeat(2);
+  shop.mode=mode==='individual'?'individual':'shared';
+  shop.chairs.push({id:'otro',name:'Otro'});
+  shop.active.principal={id:'actual',name:'Actual',serviceId:'corte',started:now-12*60000,joined:now-14*60000};
+  if(mode!=='empty')shop.queue=[
+   {id:'primero',name:'Primero',chairId:'otro',serviceId:'corte',minutes:30,joined:now},
+   {id:'segundo',name:'Segundo',chairId:'principal',serviceId:'corte',minutes:30,joined:now}];
+  await repo.createAccount({slug:shop.slug,email:'prueba@example.test',hash},shop);
+  await repo.createSession(await digest(credential),shop.slug,now+60000,hash);
+  const finish=()=>route(new Request('https://example.test/api/v1/agenda',{method:'POST',headers:{Authorization:'Bearer '+credential},body:JSON.stringify({action:'finish-next',chairId:'principal',id:'actual'})}),repo);
+  const responses=await Promise.all([finish(),finish()]);
+  assert.deepEqual(responses.map(r=>r.status).sort(),[200,409]);
+  const after=await repo.shop(shop.slug).read();
+  assert.equal(after.revision,1);
+  assert.equal(after.active.principal?.id,mode==='empty'?undefined:mode==='shared'?'primero':'segundo');
+  assert.equal(after.queue.length,mode==='empty'?0:1);
+  assert.equal(after.history.length,1);
+  assert.equal(after.history[0].outcome,'served');
+  assert.ok(after.history[0].minutes>=12&&after.history[0].minutes<13);
+ }
+});

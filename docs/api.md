@@ -46,3 +46,5 @@ curl -H "Authorization: Bearer $TOKEN" "$BASE/agenda"
 curl --json '{"action":"join","name":"Cliente de prueba","phone":"8095550101","serviceId":"corte","consent":true}' "$BASE/b/mi-barberia/fila"
 curl -H "Authorization: Bearer $TOKEN" --json '{"action":"next","chairId":"principal"}' "$BASE/agenda"
 ```
+
+`finish-next` recibe `chairId` e `id` del corte en curso. Registra su duración real y llama al siguiente turno elegible en una sola actualización de la fila. Si no hay turno elegible, solo termina. Devuelve `409` si el corte ya cambió.

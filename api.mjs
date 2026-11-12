@@ -35,6 +35,12 @@ function refreshNotices(s){
     t.soonNotified=true;
   }
 }
+function callNext(s,chair,t,now=Date.now()){
+  s.queue=s.queue.filter(v=>v.id!==t.id);
+  s.active[chair.id]={...t,minutes:serviceMinutes(s,t.serviceId,chair.id,t.minutes),calledAt:now,deadline:now+s.noShowMinutes*60000};
+  s.notices=s.notices.filter(n=>n.id!==t.id+':soon'||n.status==='sent');
+  enqueueNotice(s,t,'called',now);
+}
 function resolveNoShow(s,chairId,t,action){
   record(s,t,chairId,'no-show');
   delete s.active[chairId];
@@ -182,10 +188,7 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
           const chair=s.chairs.find(c=>c.id===input.chairId);
           const t=chair&&nextFor(s,chair);
           if(!t||s.active[chair.id])return fail('El sillón está ocupado o no hay turnos.',409);
-          s.queue=s.queue.filter(v=>v.id!==t.id);
-          s.active[chair.id]={...t,minutes:serviceMinutes(s,t.serviceId,chair.id,t.minutes),calledAt:Date.now(),deadline:Date.now()+s.noShowMinutes*60000};
-          s.notices=s.notices.filter(n=>n.id!==t.id+':soon'||n.status==='sent');
-          enqueueNotice(s,t,'called');break;
+          callNext(s,chair,t);break;
         }
         case 'start': {
           const t=s.active[input.chairId];
@@ -198,11 +201,17 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
           if(!t||t.id!==input.id||t.started||!['back','remove'].includes(input.disposition))return fail('El turno cambió.',409);
           resolveNoShow(s,input.chairId,t,input.disposition);break;
         }
-        case 'finish': {
+        case 'finish':
+        case 'finish-next': {
           const t=s.active[input.chairId];
           if(!t||t.id!==input.id||!t.started)return fail('El turno cambió. Actualiza la agenda.',409);
-          record(s,t,input.chairId,'served');
-          delete s.active[input.chairId];break;
+          const now=Date.now();
+          record(s,t,input.chairId,'served',now);
+          delete s.active[input.chairId];
+          const chair=s.chairs.find(c=>c.id===input.chairId);
+          const next=input.action==='finish-next'&&chair&&nextFor(s,chair);
+          if(next)callNext(s,chair,next,now);
+          break;
         }
         case 'remove':
           if(!s.queue.some(t=>t.id===input.id))return fail('Ese turno ya no está en espera.',409);

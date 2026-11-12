@@ -83,6 +83,7 @@ async function capturePanels(barber,browser,base){
   assert.equal(r.status(),200);
  }
  await text(barber,'#queueHeading','En espera (3)');
+ await barber.getByRole('button',{name:'Terminar y llamar al siguiente',exact:true}).waitFor();
  const visitor=await browser.newPage({viewport:{width:360,height:740}});
  await visitor.goto(base+'/b/barberia-prueba');
  await text(visitor,'#headline','espera aprox.');
