@@ -166,6 +166,9 @@ function renderMetrics(s){
  $('statsWa').href='https://wa.me/?text='+encodeURIComponent(stats.message);
 }
 
+function newBadge(s,t){
+ return element('span',s.firstVisitMessage?'NUEVO · '+s.firstVisitMessage:'NUEVO','queue-badge assigned');
+}
 function renderChairs(s){
  $('chairs').replaceChildren(...s.chairs.map(chair=>{
   const t=s.active[chair.id], card=element('section',null,'card chair-card'), top=element('div',null,'chair-top');
@@ -183,6 +186,8 @@ function renderChairs(s){
    card.append(actions);return card;
   }
   card.append(element('p',t.name||'Cliente sin nombre','chair-client'));
+  if(t.firstVisit)card.append(newBadge(s,t));
+  if(t.note)card.append(element('p',t.note,'turn-note'));
   const timing=element('div',null,'chair-meta');
   timing.append(element('span',serviceName(s,t.serviceId),'quiet'));
   const timer=element('p',null,'chair-timer');
@@ -213,7 +218,9 @@ function renderQueue(s){
   const heading=element('div',null,'queue-heading');
   heading.append(element('strong',(i+1)+'. '+t.name));
   if(s.chairs.length>1)heading.append(element('span',s.chairs.find(c=>c.id===t.chairId)?.name||'Cualquiera','queue-badge'+(t.chairId?' assigned':'')));
+  if(t.firstVisit)heading.append(newBadge(s,t));
   info.append(heading,element('small',serviceName(s,t.serviceId)+' · '+t.minutes+' min'));
+  if(t.note)info.append(element('p',t.note,'turn-note'));
   const remove=button('Quitar',()=>change('remove',{id:t.id}),true);
   remove.setAttribute('aria-label','Quitar a '+t.name);
   const controls=element('div',null,'queue-actions');
@@ -316,7 +323,7 @@ function addService(service={}){
 
 function settingsPayload(){
  const form=$('settings'), f=form.elements;
- const {name,phone,mode,noShowMinutes}=values(form);
+ const {name,phone,mode,noShowMinutes,firstVisitExtra,firstVisitMessage}=values(form);
  const chairs=[...$('chairSettings').children].map(row=>({id:row.dataset.id,name:row.children[0].value,specialty:row.children[1].value}));
  const services=[...$('serviceSettings').children].map(row=>{
   const [name,minutes,price]=row.querySelectorAll('input');
@@ -324,7 +331,7 @@ function settingsPayload(){
  });
  const hours={enabled:f.hoursEnabled.checked,from:f.hoursFrom.value,to:f.hoursTo.value,
   days:[...form.querySelectorAll('input[name=day]:checked')].map(v=>Number(v.value))};
- return {name,phone,mode,noShowMinutes,chairs,services,hours,autoSkip:f.autoSkip.checked};
+ return {name,phone,mode,noShowMinutes,firstVisitExtra,firstVisitMessage,chairs,services,hours,autoSkip:f.autoSkip.checked};
 }
 
 function syncSaveButton(){
@@ -342,7 +349,7 @@ function updateDirty(){
 
 function fillSettings(s){
  const form=$('settings'), f=form.elements;
- f.name.value=s.name;f.phone.value=s.phone;f.mode.value=s.mode;f.noShowMinutes.value=s.noShowMinutes;f.autoSkip.checked=s.autoSkip;
+ f.name.value=s.name;f.phone.value=s.phone;f.firstVisitExtra.value=s.firstVisitExtra;f.firstVisitMessage.value=s.firstVisitMessage;f.mode.value=s.mode;f.noShowMinutes.value=s.noShowMinutes;f.autoSkip.checked=s.autoSkip;
  $('chairSettings').replaceChildren();s.chairs.forEach(addChair);
  $('serviceSettings').replaceChildren();s.services.forEach(addService);
  f.hoursEnabled.checked=s.hours.enabled;f.hoursFrom.value=s.hours.from;f.hoursTo.value=s.hours.to;

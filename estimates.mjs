@@ -10,8 +10,12 @@ export function nextFor(s,chair){
   return s.queue.find(t=>chairAccepts(s,t,chair));
 }
 export function serviceMinutes(s,serviceId,chairId,fallback){
-  const last=s.history.filter(h=>h.serviceId===serviceId&&h.chairId===chairId&&h.outcome==='served'&&h.minutes>0).slice(-12);
+  const last=s.history.filter(h=>h.serviceId===serviceId&&h.chairId===chairId&&h.outcome==='served'&&!h.firstVisit&&h.minutes>0).slice(-12);
   return last.length<3?fallback:Math.round(last.reduce((sum,h)=>sum+h.minutes,0)/last.length);
+}
+export function estimatedMinutes(s,t,chairId){
+  const extra=t.extra||0;
+  return serviceMinutes(s,t.serviceId,chairId,t.minutes-extra)+extra;
 }
 export function range(minutes){
   if(minutes<=0)return [0,0];
@@ -26,12 +30,12 @@ export function predict(s,target,now=Date.now()){
   const ordered=target?s.queue.slice(0,s.queue.indexOf(target)):s.queue;
   for(const t of ordered){
     const seat=chairs.filter(c=>chairAccepts(s,t,c.chair)).sort((a,b)=>a.free-b.free)[0];
-    if(seat)seat.free+=serviceMinutes(s,t.serviceId,seat.chair.id,t.minutes);
+    if(seat)seat.free+=estimatedMinutes(s,t,seat.chair.id);
   }
   return Math.min(...chairs.filter(c=>!target||chairAccepts(s,target,c.chair)).map(c=>c.free));
 }
 export function record(s,t,chairId,outcome,now=Date.now()){
   const service=s.services.find(service=>service.id===t.serviceId);
-  s.history.push({chairId,serviceId:t.serviceId,serviceName:service?.name??null,price:outcome==='served'&&Number.isFinite(service?.price)?service.price:null,outcome,at:now,waitMinutes:t.joined&&t.started?Math.max(0,((t.calledAt||t.started)-t.joined)/60000):null,started:t.started||null,minutes:t.started?Math.max(0.1,(now-t.started)/60000):0});
+  s.history.push({chairId,firstVisit:t.firstVisit===true,serviceId:t.serviceId,serviceName:service?.name??null,price:outcome==='served'&&Number.isFinite(service?.price)?service.price:null,outcome,at:now,waitMinutes:t.joined&&t.started?Math.max(0,((t.calledAt||t.started)-t.joined)/60000):null,started:t.started||null,minutes:t.started?Math.max(0.1,(now-t.started)/60000):0});
   s.history=s.history.slice(-3000);
 }

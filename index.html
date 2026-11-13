@@ -10,9 +10,13 @@
 <label>Nombre<input name="name" required minlength="2" maxlength="60" autocomplete="given-name"></label>
 <label>WhatsApp<input name="phone" type="tel" required maxlength="24" autocomplete="tel"></label>
 <label>Servicio<select name="serviceId" required></select></label><fieldset id="chairChoices" hidden><legend>¿Con quién quieres cortarte?</legend><div id="chairOptions" role="radiogroup" aria-label="Barbero"></div></fieldset>
-<label class="consent"><input name="consent" type="checkbox" required><span>Acepto que la barbería use mi nombre y WhatsApp para manejar mi turno y avisarme. Los datos de la fila se eliminan en 24 horas.</span></label>
+<label class="consent"><input name="firstVisit" type="checkbox"><span>Es mi primera vez en esta barbería</span></label>
+<label>¿Qué te quieres hacer? <input name="note" maxlength="120" placeholder="Opcional"></label>
+<label class="consent"><input name="remember" type="checkbox"><span>Recordarme en este celular</span></label>
+<div id="rememberActions" class="actions" hidden><button id="useRemembered" type="button" class="secondary">Usar mis datos anteriores</button><a id="forgetRemembered" class="btn secondary" href="#join">Olvidar mis datos en este celular</a></div>
+<label class="consent"><input name="consent" type="checkbox" required><span>Acepto que la barbería use mi nombre, WhatsApp y nota para manejar mi turno y avisarme. Los datos de la fila se eliminan en 24 horas.</span></label>
 <button class="join-submit">Anotarme</button></form>
-<div class="card" id="own" hidden><h2>Mi turno</h2><p id="ownText"></p><p id="ownBarber" hidden></p><form id="ownReassign" hidden><label>Cambiar de barbero<select name="chairId" required></select></label><button class="secondary">Cambiar sin perder mi lugar</button></form><p class="quiet">Guarda tu enlace personal para ver el turno en otro celular. Compártelo solo contigo.</p><div class="actions"><button id="copyTicket" class="secondary">Copiar enlace</button><a id="saveTicket" class="btn secondary" target="_blank" rel="noopener noreferrer">Guardar en mi WhatsApp</a></div><p id="ticketFeedback" class="quiet" role="status"></p><div class="actions"><button class="secondary" id="leave">Salir de la fila</button><button class="secondary" id="erase">Borrar mis datos</button></div></div>
+<div class="card" id="own" hidden><h2>Mi turno</h2><p id="ownText"></p><p id="ownNote" hidden></p><p id="ownPromo" class="queue-badge assigned" hidden></p><p id="ownBarber" hidden></p><form id="ownReassign" hidden><label>Cambiar de barbero<select name="chairId" required></select></label><button class="secondary">Cambiar sin perder mi lugar</button></form><p class="quiet">Guarda tu enlace personal para ver el turno en otro celular. Compártelo solo contigo.</p><div class="actions"><button id="copyTicket" class="secondary">Copiar enlace</button><a id="saveTicket" class="btn secondary" target="_blank" rel="noopener noreferrer">Guardar en mi WhatsApp</a></div><p id="ticketFeedback" class="quiet" role="status"></p><div class="actions"><button class="secondary" id="leave">Salir de la fila</button><button class="secondary" id="erase">Borrar mis datos</button></div></div>
 <div class="card"><h2>Horario y servicios</h2><p id="publicHours" class="sub"></p><ul id="publicServices" class="list"></ul></div><p id="publicSaving" class="save-status" role="status"></p><p class="notice" id="publicError" role="status"></p>
 <a hidden id="wa" class="btn secondary" target="_blank" rel="noopener">Escribir por WhatsApp</a>
 </section>
@@ -70,7 +74,7 @@
    <details class="card settings-section" open><summary>General</summary>
     <label>Nombre de la barbería<input name="name" maxlength="60" required></label>
     <label>WhatsApp de la barbería<input name="phone" type="tel" maxlength="24"></label>
-    <div class="arrival-row"><label>Minutos de llegada<input name="noShowMinutes" type="number" min="1" max="30" required></label><label class="check-control"><input name="autoSkip" type="checkbox"><span>Quitar automáticamente</span></label></div>
+    <label>Minutos extra para clientes nuevos<input name="firstVisitExtra" type="number" min="0" max="15" required></label><label>Mensaje o promo para clientes nuevos<input name="firstVisitMessage" maxlength="100"></label><div class="arrival-row"><label>Minutos de llegada<input name="noShowMinutes" type="number" min="1" max="30" required></label><label class="check-control"><input name="autoSkip" type="checkbox"><span>Quitar automáticamente</span></label></div>
    </details>
    <details class="card settings-section" id="chairSection"><summary>Barberos</summary>
     <label>Tipo de fila<select name="mode"><option value="shared">Cualquiera puede atender (el cliente puede elegir barbero)</option><option value="individual">El cliente debe elegir barbero</option></select></label>

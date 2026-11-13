@@ -497,3 +497,24 @@ test('la fila compartida conserva el barbero pedido y permite reasignar con revi
  assert.equal((await add('Tercero','8095550103','any')).status,400);
  assert.equal((await add('Tercero','8095550103','no-existe')).status,400);
 });
+
+test('primera visita suma minutos y protege la nota hasta su caducidad',async()=>{
+ const repo=localRepository(mkdtempSync(tmpdir()+'/turno-first-'));
+ const s=newShop('first','Primera visita');
+ s.firstVisitMessage='Bienvenido';
+ await repo.createAccount({slug:s.slug,email:'first@example.test',hash:await makePassword(crypto.randomUUID(),crypto.randomUUID())},s);
+ const get=(path,opts={})=>route(new Request('https://example.test/api/v1/b/first/'+path,opts),repo);
+ const joined=await (await get('fila',{method:'POST',body:JSON.stringify({action:'join',name:'Cliente',phone:'8095550101',serviceId:'corte',consent:true,firstVisit:true,note:'  Solo\u0000 las puntas  '})})).json();
+ assert.equal(joined.own.firstVisit,true);assert.equal(joined.own.note,'Solo  las puntas');
+ assert.equal(joined.own.firstVisitMessage,'Bienvenido');
+ assert.doesNotMatch(await (await get('estado')).text(),/las puntas|Bienvenido/);
+ const store=repo.shop(s.slug), state=await store.read(), rev=state.revision++;
+ assert.equal(state.queue[0].minutes,35);
+ for(const minutes of [15,20,25])state.history.push({outcome:'served',chairId:'principal',serviceId:'corte',minutes});
+ state.history.push({outcome:'served',chairId:'principal',serviceId:'corte',minutes:90,firstVisit:true});
+ assert.equal(serviceMinutes(state,'corte','principal',30),20);
+ state.queue[0].joined=Date.now()-86400001;
+ await store.write(state,rev);
+ assert.equal((await (await get('estado',{headers:{'X-Turno-Token':joined.token}})).json()).own,null);
+ assert.deepEqual((await store.read()).queue,[]);
+});

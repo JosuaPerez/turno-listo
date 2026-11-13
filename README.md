@@ -56,3 +56,5 @@ El sonido de nuevos turnos se activa después de tocar el panel y se puede apaga
 El panel se puede instalar desde Ajustes > Cuenta en un navegador compatible. El service worker usa caché versionada para el shell y red primero para HTML, CSS y scripts. Las solicitudes de la API y enlaces de turno con `?t=` quedan fuera de la caché. Para regenerar los iconos, instala las dependencias de prueba y ejecuta `node generate-icons.mjs`.
 
 Con varios barberos, el cliente puede elegir uno o pedir el primero disponible según el modo de fila. La espera se estima por barbero y la elección puede cambiarse sin volver al final. El enlace manual de WhatsApp incluye el barbero o indica el primero disponible.
+
+Los turnos de primera visita pueden sumar 0–15 minutos y mostrar una promo. No se usan para aprender la duración habitual. Nombre, WhatsApp, servicio y barbero solo se guardan para reutilizar en el dispositivo si el cliente marca «Recordarme»; la nota no se guarda en el dispositivo.

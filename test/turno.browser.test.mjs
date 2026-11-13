@@ -267,7 +267,7 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  await client.goto(base+'/b/barberia-prueba');
  await text(client,'#headline','Puedes pasar ahora');
  assert.deepEqual(await client.evaluate(()=>{
-  const positions=['.hero','#join','#join button','#publicHours'].map(id=>document.querySelector(id).getBoundingClientRect().top);
+  const positions=['.hero','#join','#join button.join-submit','#publicHours'].map(id=>document.querySelector(id).getBoundingClientRect().top);
   return [positions.every((y,i)=>!i||y>positions[i-1]),window.innerWidth,!!document.getElementById('count')];
  }),[true,360,false]);
  assert.equal(await client.getByRole('button',{name:'Anotarme',exact:true}).count(),1);
@@ -288,7 +288,7 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  await joinForm.getByLabel('Nombre',{exact:true}).fill('Cliente Prueba');
  await joinForm.getByLabel('WhatsApp',{exact:true}).fill('8095550101');
  await joinForm.locator('select[name=serviceId]').selectOption('corte');
- await joinForm.getByRole('checkbox').check();
+ await joinForm.locator('[name=consent]').check();
  await joinForm.getByRole('button',{name:'Anotarme'}).click();
  await text(client,'#ownText','Posición 1');
  await text(barber,'#newTurnNotice','Se anotó Cliente Prueba');
@@ -340,7 +340,7 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  const nextForm=second.locator('#join');
  await nextForm.getByLabel('Nombre',{exact:true}).fill('Otra Persona');
  await nextForm.getByLabel('WhatsApp',{exact:true}).fill('8295550102');
- await nextForm.getByRole('checkbox').check();
+ await nextForm.locator('[name=consent]').check();
  await nextForm.getByRole('button',{name:'Anotarme'}).click();
  await text(second,'#ownText','Posición 1');
  await text(barber,'#queue','Otra Persona');
@@ -367,11 +367,18 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  const form=newcomer.locator('#join');
  await form.locator('[name=name]').fill('Miguel');
  await form.locator('[name=phone]').fill('8495550103');
+ await form.locator('[name=firstVisit]').check();
+ await form.locator('[name=note]').fill('Solo las puntas');
+ await form.locator('[name=remember]').check();
  await form.locator('[name=consent]').check();
  await form.getByRole('button',{name:'Anotarme'}).click();
  await text(newcomer,'#ownBarber','Con Yefri');
  await text(barber,'#queue','Miguel');
  const row=barber.locator('#queue li').filter({hasText:'Miguel'});
+ assert.match(await row.textContent(),/NUEVO/);
+ assert.match(await row.textContent(),/Solo las puntas/);
+ await text(newcomer,'#ownNote','Solo las puntas');
+ if(process.env.TURNO_SCREENSHOTS_DIR){await row.scrollIntoViewIfNeeded();await barber.screenshot({path:join(process.env.TURNO_SCREENSHOTS_DIR,'3-cliente-nuevo.png')});}
  assert.match(await row.textContent(),/Yefri/);
  await row.getByRole('button',{name:'Cambiar barbero de Miguel'}).click();
  await row.getByRole('combobox',{name:'Barbero para Miguel'}).selectOption('any');

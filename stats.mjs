@@ -24,6 +24,7 @@ export function summarize(s,now=Date.now()){
   const logs=s.history.filter(e=>e.at>=week&&e.at<=now), served=logs.filter(e=>e.outcome==='served');
   const todayEntries=served.filter(e=>e.at>=start);
   const todayServed=todayEntries.length;
+  const newToday=todayEntries.filter(e=>e.firstVisit).length, newWeek=served.filter(e=>e.firstVisit).length;
   const today_revenue=estimatedRevenue(todayEntries), week_revenue=estimatedRevenue(served);
   const waits=todayEntries.filter(e=>Number.isFinite(e.waitMinutes));
   const todayWait=waits.length?Math.round(waits.reduce((sum,e)=>sum+e.waitMinutes,0)/waits.length):null;
@@ -39,6 +40,6 @@ export function summarize(s,now=Date.now()){
   }
   const peakHour=[...peak.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||null;
   const noShows=logs.filter(e=>e.outcome==='no-show').length, exits=logs.filter(e=>e.outcome==='left').length;
-  const message='Esta semana atendiste '+served.length+' clientes. '+(peakHour?'Tu hora pico fue '+peakHour+'. ':'')+(week_revenue===null?'':'Ingresos estimados: RD$ '+rd.format(week_revenue)+'. ')+'Ausencias: '+noShows+'. Salidas de la fila: '+exits+'.';
-  return {today:todayServed,todayWait,today_revenue,week_revenue,week:served.length,services,peakHour,noShows,exits,message};
+  const message='Esta semana atendiste '+served.length+' clientes. '+(peakHour?'Tu hora pico fue '+peakHour+'. ':'')+(week_revenue===null?'':'Ingresos estimados: RD$ '+rd.format(week_revenue)+'. ')+'Clientes nuevos hoy: '+newToday+'; esta semana: '+newWeek+'. Ausencias: '+noShows+'. Salidas de la fila: '+exits+'.';
+  return {today:todayServed,todayWait,newToday,newWeek,today_revenue,week_revenue,week:served.length,services,peakHour,noShows,exits,message};
 }

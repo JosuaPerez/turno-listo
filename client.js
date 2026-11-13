@@ -4,8 +4,17 @@ const publicSlug=location.pathname.split('/')[2]||'turno-listo';
 const publicPath='/api/v1/b/'+encodeURIComponent(publicSlug);
 const tokenKey='turno-ticket:'+publicSlug;
 let token='', previousPublic, publicState, choiceOptions;
+const savedKey='turno-remember:'+publicSlug;
 const chairKey='turno-chair:'+publicSlug;
 const queueSaves=saves($('client'),'publicSaving');
+function remembered(){
+ try{return JSON.parse(localStorage.getItem(savedKey));}catch{return null;}
+}
+function forgetRemembered(){
+ try{localStorage.removeItem(savedKey);localStorage.removeItem(chairKey);}catch{}
+ $('rememberActions').hidden=true;
+ $('join').elements.remember.checked=false;
+}
 function personalLink(){
  const url=new URL('/b/'+publicSlug,location.origin);url.searchParams.set('t',token);return url.href;
 }
@@ -47,6 +56,7 @@ function publicRender(s){
  $('join').hidden=!s.open||!!s.own;
  bookingOptions($('join'),s);renderChoices(s);
  $('own').hidden=!s.own;
+ for(const [id,value] of [['ownNote',s.own?.note],['ownPromo',s.own?.firstVisitMessage]]){$(id).hidden=!value;msg(id,value||'');}
  if(s.own)msg('ownText',s.own.status==='waiting'?'Esperando · Posición '+s.own.position+' · '+waitLabel(s.own.range):s.own.status==='called'?(s.chairs.length>1&&s.own.barber?'¡Te toca con '+s.own.barber+'! Pasa por favor.':'¡Te toca! Pasa a la barbería.'):'En el sillón');
  $('ownBarber').hidden=s.chairs.length<2||!s.own||s.own.status==='called';
  if(s.own)msg('ownBarber','Con '+(s.own.barber||'el primero disponible'));
@@ -84,7 +94,12 @@ async function publicChange(data){
   const s=await api(publicPath+'/fila',data,undefined,token);
   token=s.token||'';if(token)localStorage.setItem(tokenKey,token);else localStorage.removeItem(tokenKey);
   if((data.action==='join'||data.action==='reassign')&&data.chairId)try{localStorage.setItem(chairKey,data.chairId);}catch{}
-  publicRender(s);if(data.action==='erase')msg('publicError','Borramos tus datos de la fila.');
+  if(data.action==='join'&&data.remember){
+   try{const {name,phone,serviceId,chairId}=data;localStorage.setItem(savedKey,JSON.stringify({name,phone,serviceId,chairId}));}catch{}
+  }
+  if(data.action==='erase')forgetRemembered();
+  $('rememberActions').hidden=!remembered();
+  publicRender(s);if(data.action==='join')$('join').reset();if(data.action==='erase')msg('publicError','Borramos tus datos de la fila.');
  }catch(e){msg('publicError',e.message);}
  finally{done();}
 }
@@ -114,7 +129,17 @@ export function startClient(){
   url.searchParams.delete('t');history.replaceState(null,'',url);
  }
  $('client').hidden=false;
- $('join').onsubmit=e=>{e.preventDefault();const data=values($('join'));publicChange({...data,consent:data.consent==='on',action:'join'});};
+ $('join').onsubmit=e=>{e.preventDefault();const data=values($('join'));publicChange({...data,remember:data.remember==='on',firstVisit:data.firstVisit==='on',consent:data.consent==='on',action:'join'});};
+ $('rememberActions').hidden=!remembered();
+ $('forgetRemembered').onclick=e=>{e.preventDefault();forgetRemembered();};
+ $('useRemembered').onclick=()=>{
+  const saved=remembered();if(!saved)return;
+  const form=$('join');
+  form.elements.name.value=saved.name;form.elements.phone.value=saved.phone;
+  if([...form.elements.serviceId.options].some(o=>o.value===saved.serviceId))form.elements.serviceId.value=saved.serviceId;
+  for(const radio of $('chairOptions').querySelectorAll('input'))if(radio.value===saved.chairId)radio.checked=true;
+  form.elements.remember.checked=true;
+ };
  $('ownReassign').onsubmit=e=>{e.preventDefault();publicChange({action:'reassign',chairId:e.currentTarget.elements.chairId.value,revision:publicState.revision});};
  $('leave').onclick=()=>publicChange({action:'leave'});
  $('copyTicket').onclick=async()=>{

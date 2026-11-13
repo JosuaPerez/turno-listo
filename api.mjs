@@ -1,7 +1,7 @@
 import {validHours,reception,summarize} from './stats.mjs';
 import {getAccount,authRoute,parseBody,allowed,readBearer} from './auth.mjs';
 import {NotificationProvider,enqueueNotice,dispatchNotices} from './notifications.mjs';
-import {firstChair,chairAccepts,pauseRemaining,nextFor,serviceMinutes,range,predict,record} from './estimates.mjs';
+import {firstChair,chairAccepts,pauseRemaining,nextFor,estimatedMinutes,range,predict,record} from './estimates.mjs';
 import {resetRoute} from './password-reset.mjs';
 import {initial,newShop} from './shop.mjs';
 import {clean,json,fail,ticket,apiPath,withApiHeaders} from './http.mjs';
@@ -30,6 +30,8 @@ function publicView(s,token){
   const chairs=s.chairs.map(c=>({id:c.id,name:c.name,specialty:c.specialty||'',state:pauseRemaining(c,now)?'pausa':s.active[c.id]?'ocupado':'libre',range:estimate(c.id)}));
   const activeChair=active?s.chairs.find(c=>s.active[c.id]===active):null;
   const own=t?{position:s.queue.filter(v=>!t.chairId||!v.chairId||v.chairId===t.chairId).indexOf(t)+1,range:range(predict(s,t)),status:'waiting',chairId:t.chairId??null,barber:s.chairs.find(c=>c.id===t.chairId)?.name}:active?{status:active.started?'serving':'called',deadline:active.deadline,chairId:activeChair?.id,barber:activeChair?.name}:null;
+  const mine=t||active;
+  if(own&&mine)Object.assign(own,{firstVisit:mine.firstVisit===true,note:mine.note||'',firstVisitMessage:mine.firstVisit?s.firstVisitMessage:''});
   return {revision:s.revision,name:s.name,slug:s.slug,services:s.services,chairs,anyRange:estimate(null),mode:s.mode,hours:s.hours,open:reception(s),busy:!!activeTickets(s).length,waiting:s.queue.length,ahead:s.queue.length+activeTickets(s).length,range:range(predict(s)),phone:s.phone,own};
 }
 function refreshNotices(s){
@@ -42,13 +44,14 @@ function refreshNotices(s){
     t.soonNotified=true;
   }
 }
+const noteText=(value,limit)=>typeof value==='string'?value.replace(/[\u0000-\u001f\u007f-\u009f]/g,' ').trim().slice(0,limit):'';
 function choice(s,id){
   if(id==null||id===''||id==='any')return s.chairs.length===1&&s.mode==='individual'?s.chairs[0].id:s.mode==='shared'?null:undefined;
   return s.chairs.some(c=>c.id===id)?id:undefined;
 }
 function callNext(s,chair,t,now=Date.now()){
   s.queue=s.queue.filter(v=>v.id!==t.id);
-  s.active[chair.id]={...t,minutes:serviceMinutes(s,t.serviceId,chair.id,t.minutes),calledAt:now,deadline:now+s.noShowMinutes*60000};
+  s.active[chair.id]={...t,minutes:estimatedMinutes(s,t,chair.id),calledAt:now,deadline:now+s.noShowMinutes*60000};
   s.notices=s.notices.filter(n=>n.id!==t.id+':soon'||n.status==='sent');
   enqueueNotice(s,t,'called',now,chair.name);
 }
@@ -61,6 +64,7 @@ function resolveNoShow(s,chairId,t,action){
     s.queue.push(waiting);
   }
 }
+function redact(t){t.name='';t.phone='';t.token='';delete t.note;delete t.firstVisit;}
 const dayMs=86400000;
 function expirePersonal(s,now){
   const old=s.queue.length;
@@ -69,7 +73,7 @@ function expirePersonal(s,now){
   for(const [chairId,t] of Object.entries(s.active)){
     if((t.joined||0)>now-dayMs)continue;
     if(!t.started){delete s.active[chairId];changed=true;continue;}
-    if(t.name||t.phone||t.token){t.name='';t.phone='';t.token='';changed=true;}
+    if(t.name||t.phone||t.token||t.note||t.firstVisit){redact(t);changed=true;}
   }
   const count=s.notices.length;
   s.notices=s.notices.filter(n=>n.created>now-dayMs&&allTickets(s).some(t=>t.phone&&n.id.startsWith(t.id+':')));
@@ -176,7 +180,8 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
       if(s.queue.length>=30)return fail('La fila está llena por ahora.',409);
       if(phone&&allTickets(s).some(t=>t.phone===phone))return fail('Ese WhatsApp ya tiene un turno activo.',409);
       resultToken=ticket();
-      s.queue.push({id:crypto.randomUUID(),token:resultToken,name,phone,minutes,chairId,serviceId:service.id,joined:Date.now()});
+      const firstVisit=input.firstVisit===true, extra=firstVisit?s.firstVisitExtra:0;
+      s.queue.push({id:crypto.randomUUID(),token:resultToken,name,phone,minutes:minutes+extra,firstVisit,extra,note:noteText(input.note,120),chairId,serviceId:service.id,joined:Date.now()});
     }else if(input.action==='reassign'){
       if(input.revision!==previous.revision)return fail('La fila cambió. Intenta de nuevo.',409);
       const t=s.queue.find(t=>admin?t.id===input.id:token&&t.token===token);
@@ -194,7 +199,7 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
     }else if(!admin&&input.action==='erase'){
       if(!token)return fail('Abre el turno desde el equipo donde te anotaste.',403);
       const t=activeTickets(s).find(v=>v.token===token);
-      if(t){t.name='';t.phone='';t.token='';}
+      if(t)redact(t);
       const waiting=s.queue.find(v=>v.token===token);
       if(waiting)record(s,waiting,waiting.chairId,'left');
       s.queue=s.queue.filter(v=>v.token!==token);
@@ -281,6 +286,10 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
           if(!Number.isInteger(noShowMinutes)||noShowMinutes<1||noShowMinutes>30)return fail('La espera para presentarse debe ser de 1 a 30 minutos.');
           const hours=validHours(input.hours), name=clean(input.name,60);
           if(!hours||!name||name.length>60)return fail('Revisa el nombre y el horario de la barbería.');
+          const extra=input.firstVisitExtra===undefined?s.firstVisitExtra:Number(input.firstVisitExtra);
+          if(!Number.isInteger(extra)||extra<0||extra>15)return fail('El tiempo extra debe ser de 0 a 15 minutos.');
+          s.firstVisitExtra=extra;
+          if(input.firstVisitMessage!==undefined)s.firstVisitMessage=noteText(input.firstVisitMessage,100);
           s.name=name;s.phone=phone;s.services=services;s.chairs=chairs;s.mode=input.mode;s.hours=hours;
           s.noShowMinutes=noShowMinutes;s.autoSkip=input.autoSkip===true;
           if(input.onboarded===true)s.onboarded=true;
