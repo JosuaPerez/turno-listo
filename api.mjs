@@ -219,7 +219,7 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
           const index=s.queue.findIndex(t=>t.id===input.id);
           if(index<0)return fail('Ese turno ya no está en espera.',409);
           const ticket=s.queue[index];
-          const positions=s.queue.flatMap((t,i)=>!ticket.chairId||!t.chairId||t.chairId===ticket.chairId?[i]:[]);
+          const positions=s.queue.map((_,i)=>i);
           const from=positions.indexOf(index);
           const destination={up:from-1,down:from+1,first:0}[input.direction];
           if(!Number.isInteger(destination)||destination===from||destination<0||destination>=positions.length)return fail('No se puede mover el turno en esa dirección.');

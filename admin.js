@@ -209,22 +209,35 @@ function renderChairs(s){
 function renderQueue(s){
  msg('queueHeading','En espera ('+s.queue.length+')');
  const rows=s.queue.map((t,i)=>{
-  const row=element('li',null,'row'), info=element('div',null,'queue-info');
-  info.append(element('strong',(i+1)+'. '+t.name),element('small',serviceName(s,t.serviceId)+' · '+t.minutes+' min'));
+  const row=element('li',null,'queue-entry'), info=element('div',null,'queue-info');
+  const heading=element('div',null,'queue-heading');
+  heading.append(element('strong',(i+1)+'. '+t.name));
+  if(s.chairs.length>1)heading.append(element('span',s.chairs.find(c=>c.id===t.chairId)?.name||'Cualquiera','queue-badge'+(t.chairId?' assigned':'')));
+  info.append(heading,element('small',serviceName(s,t.serviceId)+' · '+t.minutes+' min'));
   const remove=button('Quitar',()=>change('remove',{id:t.id}),true);
   remove.setAttribute('aria-label','Quitar a '+t.name);
-  if(s.chairs.length>1)info.append(element('small',s.chairs.find(c=>c.id===t.chairId)?.name||'Cualquiera'));
-  const group=s.queue.filter(other=>!t.chairId||!other.chairId||other.chairId===t.chairId);
-  const position=group.indexOf(t);
   const controls=element('div',null,'queue-actions');
   const move=direction=>change('reorder',{id:t.id,direction,revision:state.revision});
   const up=button('Subir',()=>move('up'),true),down=button('Bajar',()=>move('down'),true);
-  up.disabled=position===0;down.disabled=position===group.length-1;
+  up.disabled=i===0;down.disabled=i===s.queue.length-1;
   up.setAttribute('aria-label','Subir a '+t.name);down.setAttribute('aria-label','Bajar a '+t.name);
-  const menu=element('details',null,'queue-menu'), summary=element('summary','Más');
-  const first=button('Pasar primero',()=>move('first'),true);first.disabled=position===0;
-  menu.append(summary,first);controls.append(up,down,menu,remove);
-  row.append(info,controls);return row;
+  controls.append(up,down);
+  if(i>0){
+   const first=button('Primero',()=>move('first'),true);
+   first.setAttribute('aria-label','Pasar primero a '+t.name);controls.append(first);
+  }
+  if(s.chairs.length>1){
+   const edit=element('form',null,'queue-edit');edit.hidden=true;
+   const select=element('select');select.required=true;select.setAttribute('aria-label','Barbero para '+t.name);
+   select.replaceChildren(...(s.mode==='shared'?[new Option('Cualquiera','any')]:[]),...s.chairs.map(c=>new Option(c.name,c.id)));
+   select.value=t.chairId||'any';
+   const apply=element('button','Cambiar');edit.append(select,apply);
+   edit.onsubmit=e=>{e.preventDefault();void change('reassign',{id:t.id,chairId:select.value,revision:state.revision});};
+   const toggle=button('Barbero',()=>{edit.hidden=!edit.hidden;toggle.setAttribute('aria-expanded',String(!edit.hidden));if(!edit.hidden)select.focus();},true);
+   toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-label','Cambiar barbero de '+t.name);
+   controls.append(toggle);row.append(info,controls,edit);
+  }else row.append(info,controls);
+  controls.append(remove);return row;
  });
  if(!rows.length){
   const empty=element('li','Comparte tu QR para que tus clientes se anoten.','quiet');

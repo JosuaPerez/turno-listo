@@ -354,6 +354,7 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  for(const page of [barber,client,second])assert.deepEqual(await page.evaluate(()=>window.cspViolations),[]);
  assert.deepEqual(errors,[]);
  await capturePanels(barber,browser,base);
+ await tab(barber,'Fila');
  const config=await (await barber.request.get(base+'/api/v1/agenda')).json();
  const added=await barber.request.post(base+'/api/v1/agenda',{data:{...config,action:'settings',chairs:[...config.chairs,{name:'Yefri',specialty:'Barba'}]}});
  assert.equal(added.status(),200);
@@ -370,5 +371,22 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  await form.getByRole('button',{name:'Anotarme'}).click();
  await text(newcomer,'#ownBarber','Con Yefri');
  await text(barber,'#queue','Miguel');
- assert.match(await barber.locator('#queue li').filter({hasText:'Miguel'}).textContent(),/Yefri/);
+ const row=barber.locator('#queue li').filter({hasText:'Miguel'});
+ assert.match(await row.textContent(),/Yefri/);
+ await row.getByRole('button',{name:'Cambiar barbero de Miguel'}).click();
+ await row.getByRole('combobox',{name:'Barbero para Miguel'}).selectOption('any');
+ await row.getByRole('button',{name:'Cambiar',exact:true}).click();
+ await row.locator('.queue-badge').filter({hasText:'Cualquiera'}).waitFor();
+ await row.getByRole('button',{name:'Cambiar barbero de Miguel'}).click();
+ await row.getByRole('combobox',{name:'Barbero para Miguel'}).selectOption({label:'Yefri'});
+ await row.getByRole('button',{name:'Cambiar',exact:true}).click();
+ await barber.waitForFunction(()=>[...document.querySelectorAll('#queue li')].some(row=>row.textContent.includes('Miguel')&&row.querySelector('.queue-badge')?.textContent==='Yefri'));
+ if(process.env.TURNO_SCREENSHOTS_DIR){
+  const queue=await (await barber.request.get(base+'/api/v1/agenda')).json();
+  for(const t of queue.queue.filter(t=>!['Miguel','Otra Persona','Joel Ramírez'].includes(t.name)))
+   await barber.request.post(base+'/api/v1/agenda',{data:{action:'remove',id:t.id}});
+  await text(barber,'#queueHeading','En espera (3)');
+  await barber.locator('#queueHeading').scrollIntoViewIfNeeded();
+  await barber.screenshot({path:join(process.env.TURNO_SCREENSHOTS_DIR,'2-lista.png')});
+ }
 });

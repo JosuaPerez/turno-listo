@@ -49,6 +49,6 @@ curl -H "Authorization: Bearer $TOKEN" --json '{"action":"next","chairId":"princ
 
 `finish-next` recibe `chairId` e `id` del corte en curso. Registra su duración real y llama al siguiente turno elegible en una sola actualización de la fila. Si no hay turno elegible, solo termina. Devuelve `409` si el corte ya cambió.
 
-`pause` recibe `chairId` y `minutes` (5, 10 o 15); `resume` recibe `chairId`. El sillón debe estar libre. `reorder` recibe `id`, `direction` (`up`, `down`, `first`) y la `revision` que vio el panel. Devuelve `409` si la fila cambió y `400` si no se puede mover en esa dirección. En modo individual solo cambia el orden de ese sillón.
+`pause` recibe `chairId` y `minutes` (5, 10 o 15); `resume` recibe `chairId`. El sillón debe estar libre. `reorder` recibe `id`, `direction` (`up`, `down`, `first`) y la `revision` que vio el panel. Devuelve `409` si la fila cambió y `400` si no se puede mover en esa dirección. Subir, bajar y pasar primero cambian el orden de la fila completa, respetando el barbero asignado.
 
 `chairId` en `join` es opcional en `shared` (vacío o `any` para cualquiera), y obligatorio en `individual` con varios barberos. El estado público agrega `chairs[].specialty`, `state`, `range` y `anyRange`. `reassign` recibe `chairId` y `revision`; desde agenda también `id`, desde fila requiere `X-Turno-Token`. Mantiene el lugar original.

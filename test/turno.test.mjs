@@ -443,17 +443,17 @@ test('pausas y reorden mantienen los límites del sillón, la revisión y el his
  assert.equal((await call({action:'reorder',id:'uno',direction:'up',revision:0})).status,400);
  const moves=await Promise.all([
   call({action:'reorder',id:'dos',direction:'first',revision:0}),
-  call({action:'reorder',id:'dos',direction:'up',revision:0})
+  call({action:'reorder',id:'otro',direction:'down',revision:0})
  ]);
  assert.deepEqual(moves.map(r=>r.status).sort(),[200,409]);
  const store=repo.shop(shop.slug);
  let current=await store.read();
- assert.deepEqual(current.queue.map(t=>t.id),['dos','otro','uno']);
- assert.equal(current.queue[0].soonNotified,true);
+ assert.deepEqual(current.queue.map(t=>t.id),moves[0].status===200?['dos','uno','otro']:['uno','dos','otro']);
+ assert.equal(current.queue.find(t=>t.id==='dos').soonNotified,true);
  assert.equal((await call({action:'pause',chairId:'principal',minutes:10})).status,200);
  current=await store.read();
- assert.deepEqual(range(predict(current,current.queue[0],current.chairs[0].pausedUntil-10*60000)),[10,15]);
- assert.equal(predict(current,current.queue[1]),0);
+ assert.deepEqual(range(predict(current,current.queue.find(t=>t.chairId==='principal'),current.chairs[0].pausedUntil-10*60000)),[10,15]);
+ assert.equal(predict(current,current.queue.find(t=>t.id==='otro')),0);
  assert.equal((await call({action:'next',chairId:'principal'})).status,409);
  assert.equal((await call({action:'next',chairId:'otro'})).status,200);
  current=await store.read();
@@ -462,7 +462,7 @@ test('pausas y reorden mantienen los límites del sillón, la revisión y el his
  const revision=current.revision;current.chairs[0].pausedUntil=Date.now()-1;current.revision++;
  assert.equal(await store.write(current,revision),true);
  assert.equal((await call({action:'next',chairId:'principal'})).status,200);
- assert.equal((await store.read()).active.principal.id,'dos');
+ assert.equal((await store.read()).active.principal.id,moves[0].status===200?'dos':'uno');
 });
 
 test('la fila compartida conserva el barbero pedido y permite reasignar con revisión',async()=>{
