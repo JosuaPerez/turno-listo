@@ -9,10 +9,10 @@
 <form class="card" id="join" hidden><h2>Anótate en la fila</h2>
 <label>Nombre<input name="name" required minlength="2" maxlength="60" autocomplete="given-name"></label>
 <label>WhatsApp<input name="phone" type="tel" required maxlength="24" autocomplete="tel"></label>
-<label>Servicio<select name="serviceId" required></select></label><label class="chairField" hidden>Barbero<select name="chairId"></select></label>
+<label>Servicio<select name="serviceId" required></select></label><fieldset id="chairChoices" hidden><legend>¿Con quién quieres cortarte?</legend><div id="chairOptions" role="radiogroup" aria-label="Barbero"></div></fieldset>
 <label class="consent"><input name="consent" type="checkbox" required><span>Acepto que la barbería use mi nombre y WhatsApp para manejar mi turno y avisarme. Los datos de la fila se eliminan en 24 horas.</span></label>
 <button class="join-submit">Anotarme</button></form>
-<div class="card" id="own" hidden><h2>Mi turno</h2><p id="ownText"></p><p class="quiet">Guarda tu enlace personal para ver el turno en otro celular. Compártelo solo contigo.</p><div class="actions"><button id="copyTicket" class="secondary">Copiar enlace</button><a id="saveTicket" class="btn secondary" target="_blank" rel="noopener noreferrer">Guardar en mi WhatsApp</a></div><p id="ticketFeedback" class="quiet" role="status"></p><div class="actions"><button class="secondary" id="leave">Salir de la fila</button><button class="secondary" id="erase">Borrar mis datos</button></div></div>
+<div class="card" id="own" hidden><h2>Mi turno</h2><p id="ownText"></p><p id="ownBarber" hidden></p><form id="ownReassign" hidden><label>Cambiar de barbero<select name="chairId" required></select></label><button class="secondary">Cambiar sin perder mi lugar</button></form><p class="quiet">Guarda tu enlace personal para ver el turno en otro celular. Compártelo solo contigo.</p><div class="actions"><button id="copyTicket" class="secondary">Copiar enlace</button><a id="saveTicket" class="btn secondary" target="_blank" rel="noopener noreferrer">Guardar en mi WhatsApp</a></div><p id="ticketFeedback" class="quiet" role="status"></p><div class="actions"><button class="secondary" id="leave">Salir de la fila</button><button class="secondary" id="erase">Borrar mis datos</button></div></div>
 <div class="card"><h2>Horario y servicios</h2><p id="publicHours" class="sub"></p><ul id="publicServices" class="list"></ul></div><p id="publicSaving" class="save-status" role="status"></p><p class="notice" id="publicError" role="status"></p>
 <a hidden id="wa" class="btn secondary" target="_blank" rel="noopener">Escribir por WhatsApp</a>
 </section>
@@ -25,7 +25,7 @@
 <dialog id="onboarding" class="onboarding" aria-labelledby="wizardTitle">
  <form id="wizardForm">
   <p id="wizardProgress" class="place"></p><h1 id="wizardTitle"></h1>
-  <div id="wizardGeneral"><label>Nombre de la barbería<input id="wizardName" maxlength="60" required></label><label>WhatsApp de la barbería<input id="wizardPhone" type="tel" maxlength="24"></label></div>
+  <div id="wizardGeneral"><label>Nombre de la barbería<input id="wizardName" maxlength="60" required></label><label>WhatsApp de la barbería<input id="wizardPhone" type="tel" maxlength="24"></label><details><summary>Si trabajan varios barberos, agrégalos aquí</summary><div id="wizardChairs"></div></details></div>
   <div id="wizardServices" hidden></div>
   <div id="wizardShare" hidden><p>Imprime el afiche o comparte el enlace con tus clientes.</p><img id="wizardQr" class="qr" alt="Código QR de la barbería"><p><a id="wizardLink"></a></p><button id="wizardPrint" type="button" class="secondary">Imprimir afiche</button></div>
   <p id="wizardError" class="notice" role="status"></p>
@@ -72,9 +72,9 @@
     <label>WhatsApp de la barbería<input name="phone" type="tel" maxlength="24"></label>
     <div class="arrival-row"><label>Minutos de llegada<input name="noShowMinutes" type="number" min="1" max="30" required></label><label class="check-control"><input name="autoSkip" type="checkbox"><span>Quitar automáticamente</span></label></div>
    </details>
-   <details class="card settings-section" id="chairSection"><summary>Sillones</summary>
-    <label>Tipo de fila<select name="mode"><option value="shared">Una fila para todos</option><option value="individual">Una fila por barbero</option></select></label>
-    <div id="chairSettings" class="editor-list"></div><button type="button" id="addChair" class="secondary">Añadir sillón</button>
+   <details class="card settings-section" id="chairSection"><summary>Barberos</summary>
+    <label>Tipo de fila<select name="mode"><option value="shared">Cualquiera puede atender (el cliente puede elegir barbero)</option><option value="individual">El cliente debe elegir barbero</option></select></label>
+    <div id="chairSettings" class="editor-list"></div><button type="button" id="addChair" class="secondary">Añadir barbero</button>
    </details>
    <details class="card settings-section" id="serviceSection"><summary>Servicios</summary>
     <div class="service-editor editor-head" aria-hidden="true"><span>Nombre</span><span>Min</span><span>RD$</span></div>

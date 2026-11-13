@@ -1,7 +1,7 @@
 import {validHours,reception,summarize} from './stats.mjs';
 import {getAccount,authRoute,parseBody,allowed,readBearer} from './auth.mjs';
 import {NotificationProvider,enqueueNotice,dispatchNotices} from './notifications.mjs';
-import {firstChair,chairAccepts,nextFor,serviceMinutes,range,predict,record} from './estimates.mjs';
+import {firstChair,chairAccepts,pauseRemaining,nextFor,serviceMinutes,range,predict,record} from './estimates.mjs';
 import {resetRoute} from './password-reset.mjs';
 import {initial,newShop} from './shop.mjs';
 import {clean,json,fail,ticket,apiPath,withApiHeaders} from './http.mjs';
@@ -22,8 +22,15 @@ function normalize(s){
 function publicView(s,token){
   const t=token?s.queue.find(t=>t.token===token):null;
   const active=token?activeTickets(s).find(t=>t.token===token):null;
-  const own=t?{position:s.queue.filter(v=>s.mode==='shared'||v.chairId===t.chairId).indexOf(t)+1,range:range(predict(s,t)),status:'waiting'}:active?{status:active.started?'serving':'called',deadline:active.deadline}:null;
-  return {revision:s.revision,name:s.name,slug:s.slug,services:s.services,chairs:s.chairs,mode:s.mode,hours:s.hours,open:reception(s),busy:!!activeTickets(s).length,waiting:s.queue.length,ahead:s.queue.length+activeTickets(s).length,range:range(predict(s)),phone:s.phone,own};
+  const now=Date.now();
+  const estimate=chairId=>{
+    const virtual={chairId};
+    return range(predict({...s,queue:[...s.queue,virtual]},virtual,now));
+  };
+  const chairs=s.chairs.map(c=>({id:c.id,name:c.name,specialty:c.specialty||'',state:pauseRemaining(c,now)?'pausa':s.active[c.id]?'ocupado':'libre',range:estimate(c.id)}));
+  const activeChair=active?s.chairs.find(c=>s.active[c.id]===active):null;
+  const own=t?{position:s.queue.filter(v=>!t.chairId||!v.chairId||v.chairId===t.chairId).indexOf(t)+1,range:range(predict(s,t)),status:'waiting',chairId:t.chairId??null,barber:s.chairs.find(c=>c.id===t.chairId)?.name}:active?{status:active.started?'serving':'called',deadline:active.deadline,chairId:activeChair?.id,barber:activeChair?.name}:null;
+  return {revision:s.revision,name:s.name,slug:s.slug,services:s.services,chairs,anyRange:estimate(null),mode:s.mode,hours:s.hours,open:reception(s),busy:!!activeTickets(s).length,waiting:s.queue.length,ahead:s.queue.length+activeTickets(s).length,range:range(predict(s)),phone:s.phone,own};
 }
 function refreshNotices(s){
   if(!reception(s)||!activeTickets(s).length)return;
@@ -31,15 +38,19 @@ function refreshNotices(s){
     const eligible=s.chairs.filter(chair=>chairAccepts(s,t,chair));
     if(eligible.some(chair=>!s.active[chair.id]&&nextFor(s,chair)===t))continue;
     if(!eligible.some(chair=>s.active[chair.id])||t.soonNotified||!t.phone||predict(s,t)>15)continue;
-    enqueueNotice(s,t,'soon');
+    enqueueNotice(s,t,'soon',Date.now(),s.chairs.find(c=>c.id===t.chairId)?.name||'el primero disponible');
     t.soonNotified=true;
   }
+}
+function choice(s,id){
+  if(id==null||id===''||id==='any')return s.chairs.length===1&&s.mode==='individual'?s.chairs[0].id:s.mode==='shared'?null:undefined;
+  return s.chairs.some(c=>c.id===id)?id:undefined;
 }
 function callNext(s,chair,t,now=Date.now()){
   s.queue=s.queue.filter(v=>v.id!==t.id);
   s.active[chair.id]={...t,minutes:serviceMinutes(s,t.serviceId,chair.id,t.minutes),calledAt:now,deadline:now+s.noShowMinutes*60000};
   s.notices=s.notices.filter(n=>n.id!==t.id+':soon'||n.status==='sent');
-  enqueueNotice(s,t,'called',now);
+  enqueueNotice(s,t,'called',now,chair.name);
 }
 function resolveNoShow(s,chairId,t,action){
   record(s,t,chairId,'no-show');
@@ -158,14 +169,22 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
       const name=clean(input.name,60), phone=phoneNumber(input.phone);
       const service=s.services.find(v=>v.id===input.serviceId);
       const minutes=service?.minutes;
-      const chairId=s.mode==='individual'?input.chairId:null;
-      if(s.mode==='individual'&&!s.chairs.some(c=>c.id===chairId))return fail('Selecciona un barbero.');
+      const chairId=choice(s,input.chairId);
+      if(chairId===undefined)return fail('Selecciona un barbero.');
       if([...name].length<2||name.length>60||!minutes||((!admin||input.phone)&&!phone))return fail('Revisa el nombre, el WhatsApp y el servicio.');
       if(!admin&&(!reception(s)||input.consent!==true))return fail('La fila está cerrada o falta aceptar el aviso.',409);
       if(s.queue.length>=30)return fail('La fila está llena por ahora.',409);
       if(phone&&allTickets(s).some(t=>t.phone===phone))return fail('Ese WhatsApp ya tiene un turno activo.',409);
       resultToken=ticket();
       s.queue.push({id:crypto.randomUUID(),token:resultToken,name,phone,minutes,chairId,serviceId:service.id,joined:Date.now()});
+    }else if(input.action==='reassign'){
+      if(input.revision!==previous.revision)return fail('La fila cambió. Intenta de nuevo.',409);
+      const t=s.queue.find(t=>admin?t.id===input.id:token&&t.token===token);
+      if(!t)return fail('Ese turno ya no está en espera.',409);
+      const chairId=choice(s,input.chairId);
+      if(chairId===undefined)return fail('Selecciona un barbero.');
+      t.chairId=chairId;
+      s.events=[...(s.events||[]),{outcome:'reassign',chairId,at:Date.now()}].slice(-300);
     }else if(!admin && input.action==='leave'){
       if(!token||!s.queue.some(t=>t.token===token))return fail('Ese turno ya no está en espera.',409);
       const t=s.queue.find(v=>v.token===token);
@@ -200,7 +219,7 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
           const index=s.queue.findIndex(t=>t.id===input.id);
           if(index<0)return fail('Ese turno ya no está en espera.',409);
           const ticket=s.queue[index];
-          const positions=s.queue.flatMap((t,i)=>s.mode==='shared'||t.chairId===ticket.chairId?[i]:[]);
+          const positions=s.queue.flatMap((t,i)=>!ticket.chairId||!t.chairId||t.chairId===ticket.chairId?[i]:[]);
           const from=positions.indexOf(index);
           const destination={up:from-1,down:from+1,first:0}[input.direction];
           if(!Number.isInteger(destination)||destination===from||destination<0||destination>=positions.length)return fail('No se puede mover el turno en esa dirección.');
@@ -254,9 +273,9 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
             id:s.services.some(a=>a.id===v?.id)?v.id:crypto.randomUUID(),name:clean(v?.name,45),minutes:Number(v?.minutes),
             price:v?.price===''||v?.price==null?null:Number(v.price)
           })):[];
-          const chairs=Array.isArray(input.chairs)?input.chairs.map(v=>({id:s.chairs.some(c=>c.id===v?.id)?v.id:crypto.randomUUID(),name:clean(v?.name,35),pausedUntil:s.chairs.find(c=>c.id===v?.id)?.pausedUntil})):[];
+          const chairs=Array.isArray(input.chairs)?input.chairs.map(v=>({id:s.chairs.some(c=>c.id===v?.id)?v.id:crypto.randomUUID(),name:clean(v?.name,35),specialty:v?.specialty===undefined?s.chairs.find(c=>c.id===v?.id)?.specialty:clean(v.specialty,60),pausedUntil:s.chairs.find(c=>c.id===v?.id)?.pausedUntil})):[];
           if(services.length<1||services.length>12||new Set(services.map(v=>v.id)).size!==services.length||services.some(v=>!v.name||v.name.length>45||!Number.isInteger(v.minutes)||v.minutes<5||v.minutes>180||(v.price!==null&&(!Number.isFinite(v.price)||v.price<0||v.price>100000))))return fail('Revisa el catálogo.');
-          if(chairs.length<1||chairs.length>8||new Set(chairs.map(v=>v.id)).size!==chairs.length||chairs.some(c=>!c.name||c.name.length>35)||!['shared','individual'].includes(input.mode))return fail('Revisa los sillones y el tipo de fila.');
+          if(chairs.length<1||chairs.length>8||new Set(chairs.map(v=>v.id)).size!==chairs.length||chairs.some(c=>!c.name||c.name.length>35||(c.specialty?.length||0)>60)||!['shared','individual'].includes(input.mode))return fail('Revisa los sillones y el tipo de fila.');
           if((s.queue.length||activeTickets(s).length)&&(input.mode!==s.mode||s.chairs.some(v=>!chairs.some(c=>c.id===v.id))||s.services.some(v=>!services.some(c=>c.id===v.id))))return fail('Vacía la fila antes de quitar servicios, sillones o cambiar el tipo de fila.',409);
           const noShowMinutes=Number(input.noShowMinutes);
           if(!Number.isInteger(noShowMinutes)||noShowMinutes<1||noShowMinutes>30)return fail('La espera para presentarse debe ser de 1 a 30 minutos.');

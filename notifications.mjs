@@ -5,6 +5,10 @@ const messages={
   soon:'Te toca en ~15 min, ve saliendo hacia la barbería',
   called:'Es tu turno, pasa por favor'
 };
+function noticeMessage(item){
+ const base=messages[item.kind];
+ return item.barber?base+'. Barbero: '+item.barber+'.':base;
+}
 export class NotificationProvider {
   constructor(env={},fetcher=fetch){this.env=env;this.fetcher=fetcher;}
   get automatic(){
@@ -12,7 +16,7 @@ export class NotificationProvider {
     return Boolean(e.WA_ACCESS_TOKEN&&e.WA_PHONE_NUMBER_ID&&/^v\d+\.\d+$/.test(e.WA_API_VERSION||'')&&e.WA_TEMPLATE_SOON&&e.WA_TEMPLATE_CALLED);
   }
   present(item){
-    return {id:item.id,kind:item.kind,name:item.name,url:notificationUrl(item.phone,messages[item.kind]),status:item.status};
+    return {id:item.id,kind:item.kind,name:item.name,url:notificationUrl(item.phone,noticeMessage(item)),status:item.status};
   }
   async send(item){
     if(!this.automatic)return false;
@@ -25,11 +29,11 @@ export class NotificationProvider {
     return result.ok;
   }
 }
-export function enqueueNotice(s,t,kind,now=Date.now()){
+export function enqueueNotice(s,t,kind,now=Date.now(),barber){
   if(!t.phone)return;
   s.notices??=[];
   if(s.notices.some(n=>n.id===t.id+':'+kind))return;
-  s.notices.push({id:t.id+':'+kind,kind,phone:t.phone,name:t.name,created:now,status:'pending'});
+  s.notices.push({id:t.id+':'+kind,kind,barber,phone:t.phone,name:t.name,created:now,status:'pending'});
 }
 export async function dispatchNotices(store,provider){
   if(!provider.automatic)return;

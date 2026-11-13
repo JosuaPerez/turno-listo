@@ -152,6 +152,17 @@ function renderMetrics(s){
   period('Hoy',stats.today,stats.today_revenue,todayNoShows,todayExits),
   period('Esta semana',stats.week,stats.week_revenue,stats.noShows,stats.exits),peak,serviceCard
  );
+ if(s.chairs.length>1){
+  const card=element('section',null,'card'), table=element('table',null,'stats-table');
+  const head=table.createTHead().insertRow();
+  for(const label of ['Barbero','Atendidos',...(revenue?['Ingresos']:[]),'Min promedio'])head.append(element('th',label));
+  const rows=table.createTBody();
+  for(const chair of s.chairs){
+   const served=s.history.filter(e=>e.outcome==='served'&&e.chairId===chair.id), row=rows.insertRow();
+   for(const value of [chair.name,served.length,...(revenue?[currency(served.reduce((sum,e)=>sum+(e.price||0),0))]:[]),served.length?Math.round(served.reduce((sum,e)=>sum+e.minutes,0)/served.length):'—'])row.append(element('td',value));
+  }
+  card.append(element('h3','Por barbero'),table);$('stats').append(card);
+ }
  $('statsWa').href='https://wa.me/?text='+encodeURIComponent(stats.message);
 }
 
@@ -179,7 +190,7 @@ function renderChairs(s){
   else timer.dataset.deadline=t.deadline;
   const fields={id:t.id,chairId:chair.id}, actions=element('div',null,'actions');
   if(t.started){
-   const eligible=!paused(chair)&&s.queue.some(v=>s.mode==='shared'||v.chairId===chair.id);
+   const eligible=!paused(chair)&&s.queue.some(v=>!v.chairId||v.chairId===chair.id);
    if(eligible)actions.append(button('Terminar y llamar al siguiente',()=>change('finish-next',fields)));
    actions.append(button('Terminar corte',()=>change('finish',fields),eligible));
   }
@@ -189,7 +200,7 @@ function renderChairs(s){
   timing.append(timer);card.append(timing,actions);
   return card;
  }));
- const eligible=s.chairs.filter(chair=>!paused(chair)&&!s.active[chair.id]&&s.queue.some(t=>s.mode==='shared'||t.chairId===chair.id));
+ const eligible=s.chairs.filter(chair=>!paused(chair)&&!s.active[chair.id]&&s.queue.some(t=>!t.chairId||t.chairId===chair.id));
  $('nextBar').replaceChildren(...eligible.map(chair=>button(s.chairs.length===1?'Llamar al siguiente':'Llamar · '+chair.name,()=>change('next',{chairId:chair.id}))));
  $('nextBar').hidden=eligible.length===0;
  refreshTimers();
@@ -202,7 +213,8 @@ function renderQueue(s){
   info.append(element('strong',(i+1)+'. '+t.name),element('small',serviceName(s,t.serviceId)+' · '+t.minutes+' min'));
   const remove=button('Quitar',()=>change('remove',{id:t.id}),true);
   remove.setAttribute('aria-label','Quitar a '+t.name);
-  const group=s.queue.filter(other=>s.mode==='shared'||other.chairId===t.chairId);
+  if(s.chairs.length>1)info.append(element('small',s.chairs.find(c=>c.id===t.chairId)?.name||'Cualquiera'));
+  const group=s.queue.filter(other=>!t.chairId||!other.chairId||other.chairId===t.chairId);
   const position=group.indexOf(t);
   const controls=element('div',null,'queue-actions');
   const move=direction=>change('reorder',{id:t.id,direction,revision:state.revision});
@@ -276,9 +288,9 @@ function removableRow(className,id,label){
 }
 
 function addChair(chair={}){
- const [row,remove]=removableRow('chair-editor',chair.id,'Quitar sillón');
- const name=input('Nombre del sillón',chair.name);
- name.maxLength=35;row.append(name,remove);$('chairSettings').append(row);
+ const [row,remove]=removableRow('chair-editor',chair.id,'Quitar barbero');
+ const name=input('Nombre del barbero',chair.name), specialty=input('Especialidad',chair.specialty,'text',false);
+ name.maxLength=35;specialty.maxLength=60;specialty.placeholder='Especialidad';row.append(name,specialty,remove);$('chairSettings').append(row);
 }
 
 function addService(service={}){
@@ -292,7 +304,7 @@ function addService(service={}){
 function settingsPayload(){
  const form=$('settings'), f=form.elements;
  const {name,phone,mode,noShowMinutes}=values(form);
- const chairs=[...$('chairSettings').children].map(row=>({id:row.dataset.id,name:row.querySelector('input').value}));
+ const chairs=[...$('chairSettings').children].map(row=>({id:row.dataset.id,name:row.children[0].value,specialty:row.children[1].value}));
  const services=[...$('serviceSettings').children].map(row=>{
   const [name,minutes,price]=row.querySelectorAll('input');
   return {id:row.dataset.id,name:name.value,minutes:minutes.value,price:price.value};
@@ -343,6 +355,8 @@ function showWizard(){
   dialog.showModal();
  }
  moveWizardEditors(wizardStep===2);
+ const chairs=$('chairSettings'),add=$('addChair');
+ (wizardStep===1?$('wizardChairs'):$('chairSection')).append(chairs,add);
  msg('wizardProgress','Paso '+wizardStep+' de 3');
  msg('wizardTitle',['Tu barbería','Tus servicios','Tu QR está listo'][wizardStep-1]);
  $('wizardGeneral').hidden=wizardStep!==1;

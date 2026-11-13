@@ -1,6 +1,6 @@
 export const firstChair={id:'principal',name:'Sillón 1'};
 export function chairAccepts(s,t,chair){
-  return s.mode==='shared'||t.chairId===chair.id;
+  return !t.chairId||t.chairId===chair.id;
 }
 export function pauseRemaining(chair,now=Date.now()){
   return Math.max(0,(chair.pausedUntil||0)-now);

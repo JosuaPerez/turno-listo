@@ -3,14 +3,37 @@ import {$,msg,api,values,element,money,waitLabel,bookingOptions,saves} from './s
 const publicSlug=location.pathname.split('/')[2]||'turno-listo';
 const publicPath='/api/v1/b/'+encodeURIComponent(publicSlug);
 const tokenKey='turno-ticket:'+publicSlug;
-let token='', previousPublic;
+let token='', previousPublic, publicState, choiceOptions;
+const chairKey='turno-chair:'+publicSlug;
 const queueSaves=saves($('client'),'publicSaving');
 function personalLink(){
  const url=new URL('/b/'+publicSlug,location.origin);url.searchParams.set('t',token);return url.href;
 }
 const weekdays=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 function priceLabel(v){return v.price==null?'':money.format(v.price);}
+function renderChoices(s){
+ const options=[...(s.mode==='shared'?[{id:'any',name:'Cualquiera disponible',range:s.anyRange}]:[]),...s.chairs];
+ const list=$('chairOptions'), signature=JSON.stringify(options);
+ $('chairChoices').hidden=s.chairs.length<2;
+ if(s.chairs.length<2){list.replaceChildren();choiceOptions=null;return;}
+ if(signature===choiceOptions)return;
+ choiceOptions=signature;
+ let chosen=list.querySelector(':checked')?.value;
+ if(!chosen)try{chosen=localStorage.getItem(chairKey);}catch{}
+ if(!options.some(c=>c.id===chosen))chosen=s.mode==='shared'?'any':null;
+ list.replaceChildren(...options.map(c=>{
+  const label=element('label',null,'chair-choice'),radio=element('input');
+  radio.type='radio';radio.name='chairId';radio.value=c.id;radio.required=true;radio.checked=c.id===chosen;
+  const caption=element('span'), status={libre:'Libre ahora',ocupado:'Ocupado',pausa:'En pausa'}[c.state];
+  caption.append(element('strong',c.name));
+  if(c.specialty)caption.append(element('small',c.specialty));
+  if(status)caption.append(element('small',status,'choice-state'));
+  caption.append(element('small',waitLabel(c.range)));
+  label.append(radio,caption);return label;
+ }));
+}
 function publicRender(s){
+ publicState=s;
  previousPublic=publicStamp(s);
  document.title=s.name+' · Turno Listo';msg('shopName',s.name);
  msg('publicHours',s.hours.enabled?s.hours.days.map(d=>weekdays[d]).join(', ')+' · '+s.hours.from+' a '+s.hours.to:'Consulta la disponibilidad de hoy en la fila.');
@@ -22,15 +45,26 @@ function publicRender(s){
  msg('headline',!s.open?'Por ahora no recibimos turnos':s.range[1]>0?'Hay '+s.ahead+' antes que tú'+' · espera aprox. '+waitLabel(s.range):'Puedes pasar ahora');
  msg('detail',!s.open?'Consulta más tarde o escríbenos por WhatsApp.':occupied?'Anótate y consulta tu posición desde aquí.':'Ahora mismo no hay nadie en la fila.');
  $('join').hidden=!s.open||!!s.own;
- bookingOptions($('join'),s);
+ bookingOptions($('join'),s);renderChoices(s);
  $('own').hidden=!s.own;
- if(s.own)msg('ownText',s.own.status==='waiting'?'Esperando · Posición '+s.own.position+' · '+waitLabel(s.own.range):s.own.status==='called'?'¡Te toca! Pasa a la barbería.':'En el sillón');
+ if(s.own)msg('ownText',s.own.status==='waiting'?'Esperando · Posición '+s.own.position+' · '+waitLabel(s.own.range):s.own.status==='called'?(s.chairs.length>1&&s.own.barber?'¡Te toca con '+s.own.barber+'! Pasa por favor.':'¡Te toca! Pasa a la barbería.'):'En el sillón');
+ $('ownBarber').hidden=s.chairs.length<2||!s.own||s.own.status==='called';
+ if(s.own)msg('ownBarber','Con '+(s.own.barber||'el primero disponible'));
+ const changeForm=$('ownReassign');
+ changeForm.hidden=s.chairs.length<2||s.own?.status!=='waiting';
+ if(!changeForm.hidden){
+  const select=changeForm.elements.chairId, selected=select.value;
+  const choices=[...(s.mode==='shared'?[new Option('Cualquiera disponible','any')]:[]),...s.chairs.map(c=>new Option(c.name,c.id))];
+  if(JSON.stringify([...select.options].map(c=>[c.value,c.text]))!==JSON.stringify(choices.map(c=>[c.value,c.text]))){
+   select.replaceChildren(...choices);select.value=choices.some(c=>c.value===selected)?selected:s.own.chairId||'any';
+  }
+ }
  if(s.own&&token)$('saveTicket').href='https://wa.me/?text='+encodeURIComponent('Mi turno: '+personalLink());
  $('leave').hidden=s.own?.status!=='waiting';
  $('wa').hidden=!s.phone;
  if(s.phone)$('wa').href='https://wa.me/'+s.phone+'?text='+encodeURIComponent('Hola, vi la fila de la barbería. ¿Puedo pasar?');
 }
-const publicStamp=s=>JSON.stringify([s.revision,s.open,s.range,s.own]);
+const publicStamp=s=>JSON.stringify([s.revision,s.open,s.range,s.own,s.chairs,s.anyRange]);
 async function refreshPublic(){
  const task=queueSaves.beginPoll();if(!task)return;
  try{
@@ -49,7 +83,8 @@ async function publicChange(data){
   msg('publicError');
   const s=await api(publicPath+'/fila',data,undefined,token);
   token=s.token||'';if(token)localStorage.setItem(tokenKey,token);else localStorage.removeItem(tokenKey);
-  publicRender(s);if(data.action==='join')$('join').reset();if(data.action==='erase')msg('publicError','Borramos tus datos de la fila.');
+  if((data.action==='join'||data.action==='reassign')&&data.chairId)try{localStorage.setItem(chairKey,data.chairId);}catch{}
+  publicRender(s);if(data.action==='erase')msg('publicError','Borramos tus datos de la fila.');
  }catch(e){msg('publicError',e.message);}
  finally{done();}
 }
@@ -80,6 +115,7 @@ export function startClient(){
  }
  $('client').hidden=false;
  $('join').onsubmit=e=>{e.preventDefault();const data=values($('join'));publicChange({...data,consent:data.consent==='on',action:'join'});};
+ $('ownReassign').onsubmit=e=>{e.preventDefault();publicChange({action:'reassign',chairId:e.currentTarget.elements.chairId.value,revision:publicState.revision});};
  $('leave').onclick=()=>publicChange({action:'leave'});
  $('copyTicket').onclick=async()=>{
   try{await navigator.clipboard.writeText(personalLink());msg('ticketFeedback','Enlace copiado. Guárdalo para abrir tu turno en otro celular.');}

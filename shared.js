@@ -28,8 +28,8 @@ const money=new Intl.NumberFormat('es-DO',{style:'currency',currency:'DOP',maxim
 const rd=new Intl.NumberFormat('es-DO',{minimumFractionDigits:2,maximumFractionDigits:2});
 function bookingOptions(form,s){
  setOptions(form.elements.serviceId,s.services.map(v=>[v.id,v.name+' · '+v.minutes+' min'+(v.price==null?'':' · '+money.format(v.price))]));
- setOptions(form.elements.chairId,s.chairs.map(v=>[v.id,v.name]));
- form.querySelector('.chairField').hidden=s.mode!=='individual';
+ const chair=form.querySelector('select[name=chairId]');
+ if(chair){setOptions(chair,[...(s.mode==='shared'?[['','Cualquiera']]:[]),...s.chairs.map(v=>[v.id,v.name])]);form.querySelector('.chairField').hidden=s.chairs.length<2;}
 }
 
 export {$,values,msg,button,element,api,waitLabel,money,rd,bookingOptions};

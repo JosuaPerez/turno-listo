@@ -17,8 +17,8 @@ test('calcula en paralelo, limita la espera a su fila y aprende tras tres cortes
  s.active.principal={started:now-10*60000,minutes:30};
  const a={serviceId:'corte',minutes:30,chairId:'principal'}, b={serviceId:'corte',minutes:30,chairId:'dos'};
  s.queue=[a,b];
- assert.deepEqual(range(predict(s,a,now)),[0,0]);
- assert.deepEqual(range(predict(s,b,now)),[20,25]);
+ assert.deepEqual(range(predict(s,a,now)),[20,25]);
+ assert.deepEqual(range(predict(s,b,now)),[0,0]);
  s.mode='individual';
  assert.equal(predict(s,a,now),20);assert.equal(predict(s,b,now),0);
  for(const minutes of [15,20])s.history.push({chairId:'dos',serviceId:'corte',outcome:'served',minutes});
@@ -400,7 +400,7 @@ test('finish-next termina y llama con una sola revisión en cada modo',async()=>
   shop.chairs.push({id:'otro',name:'Otro'});
   shop.active.principal={id:'actual',name:'Actual',serviceId:'corte',started:now-12*60000,joined:now-14*60000};
   if(mode!=='empty')shop.queue=[
-   {id:'primero',name:'Primero',chairId:'otro',serviceId:'corte',minutes:30,joined:now},
+   {id:'primero',name:'Primero',chairId:mode==='individual'?'otro':null,serviceId:'corte',minutes:30,joined:now},
    {id:'segundo',name:'Segundo',chairId:'principal',serviceId:'corte',minutes:30,joined:now}];
   await repo.createAccount({slug:shop.slug,email:'prueba@example.test',hash},shop);
   await repo.createSession(await digest(credential),shop.slug,now+60000,hash);
@@ -463,4 +463,37 @@ test('pausas y reorden mantienen los límites del sillón, la revisión y el his
  assert.equal(await store.write(current,revision),true);
  assert.equal((await call({action:'next',chairId:'principal'})).status,200);
  assert.equal((await store.read()).active.principal.id,'dos');
+});
+
+test('la fila compartida conserva el barbero pedido y permite reasignar con revisión',async()=>{
+ const repo=localRepository(mkdtempSync(tmpdir()+'/turno-choice-'));
+ const s=newShop('choice','Choice'), now=Date.now(), hash=await makePassword(crypto.randomUUID(),crypto.randomUUID());
+ const auth=crypto.randomUUID().replaceAll('-','').repeat(2);
+ s.chairs.push({id:'dos',name:'Yefri',specialty:'Barba',pausedUntil:now+60000});
+ s.active.principal={id:'active',name:'Privado',started:now,joined:now,minutes:30};
+ await repo.createAccount({slug:s.slug,email:'choice@example.test',hash},s);
+ await repo.createSession(await digest(auth),s.slug,now+60000,hash);
+ const call=(path,body,headers={})=>route(new Request('https://example.test/api/v1/'+path,{method:body?'POST':'GET',body:body?JSON.stringify(body):undefined,headers}),repo);
+ const add=(name,phone,chairId)=>call('b/choice/fila',{action:'join',name,phone,chairId,serviceId:'corte',consent:true});
+ const a=await (await add('Primero','8095550101','principal')).json();
+ const b=await (await add('Segundo','8095550102','any')).json();
+ assert.equal(b.own.position,2);
+ const publicView=await (await call('b/choice/estado')).json();
+ assert.equal(publicView.chairs[1].state,'pausa');
+ assert.ok(publicView.anyRange[1]<publicView.chairs[0].range[1]);
+ assert.doesNotMatch(JSON.stringify(publicView),/pausedUntil|Privado|Primero|8095550101/);
+ const next=body=>call('agenda',body,{Authorization:'Bearer '+auth});
+ assert.equal((await next({action:'next',chairId:'dos'})).status,409);
+ const moved=await (await call('b/choice/fila',{action:'reassign',chairId:'dos',revision:b.revision},{'X-Turno-Token':a.token})).json();
+ assert.equal(moved.own.position,1);assert.equal(moved.own.barber,'Yefri');
+ assert.equal((await call('b/choice/fila',{action:'reassign',chairId:'principal',revision:b.revision},{'X-Turno-Token':a.token})).status,409);
+ const saved=await repo.shop(s.slug).read();
+ assert.equal((await next({action:'reassign',id:saved.queue[0].id,chairId:'principal',revision:saved.revision})).status,200);
+ await next({action:'resume',chairId:'dos'});
+ const called=await (await next({action:'next',chairId:'dos'})).json();
+ assert.equal(called.active.dos.name,'Segundo');assert.equal(called.queue[0].name,'Primero');
+ const store=repo.shop(s.slug), current=await store.read(), rev=current.revision++;
+ current.mode='individual';await store.write(current,rev);
+ assert.equal((await add('Tercero','8095550103','any')).status,400);
+ assert.equal((await add('Tercero','8095550103','no-existe')).status,400);
 });
