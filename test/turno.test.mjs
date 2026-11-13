@@ -457,8 +457,11 @@ test('pausas y reorden mantienen los límites del sillón, la revisión y el his
  assert.equal((await call({action:'next',chairId:'principal'})).status,409);
  assert.equal((await call({action:'next',chairId:'otro'})).status,200);
  current=await store.read();
- assert.deepEqual(current.history.map(h=>h.outcome),['reorder','pause']);
- for(const h of current.history)assert.equal('name' in h||'phone' in h||'token' in h,false);
+ assert.deepEqual(current.history,[]);
+ assert.deepEqual(current.events.map(h=>h.outcome),['reorder','pause']);
+ assert.equal(summarize(current).today,0);
+ assert.equal(serviceMinutes(current,'corte','principal',30),30);
+ for(const h of current.events)assert.equal('name' in h||'phone' in h||'token' in h,false);
  const revision=current.revision;current.chairs[0].pausedUntil=Date.now()-1;current.revision++;
  assert.equal(await store.write(current,revision),true);
  assert.equal((await call({action:'next',chairId:'principal'})).status,200);

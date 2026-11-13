@@ -57,6 +57,9 @@ function validatedMap(value){
   }catch{}
   return null;
 }
+function queueEvent(s,outcome,chairId){
+  s.events=[...(s.events||[]),{outcome,chairId,at:Date.now()}].slice(-300);
+}
 function choice(s,id){
   if(id==null||id===''||id==='any')return s.chairs.length===1&&s.mode==='individual'?s.chairs[0].id:s.mode==='shared'?null:undefined;
   return s.chairs.some(c=>c.id===id)?id:undefined;
@@ -201,7 +204,7 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
       const chairId=choice(s,input.chairId);
       if(chairId===undefined)return fail('Selecciona un barbero.');
       t.chairId=chairId;
-      s.events=[...(s.events||[]),{outcome:'reassign',chairId,at:Date.now()}].slice(-300);
+      queueEvent(s,'reassign',chairId);
     }else if(!admin && input.action==='leave'){
       if(!token||!s.queue.some(t=>t.token===token))return fail('Ese turno ya no está en espera.',409);
       const t=s.queue.find(v=>v.token===token);
@@ -228,7 +231,7 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
             if(![5,10,15].includes(input.minutes))return fail('Elige una pausa de 5, 10 o 15 minutos.');
             chair.pausedUntil=Date.now()+input.minutes*60000;
           }else delete chair.pausedUntil;
-          record(s,{},chair.id,input.action);
+          queueEvent(s,input.action,chair.id);
           break;
         }
         case 'reorder': {
@@ -243,7 +246,7 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
           const ordered=positions.map(i=>s.queue[i]);
           ordered.splice(destination,0,ordered.splice(from,1)[0]);
           positions.forEach((i,j)=>{s.queue[i]=ordered[j];});
-          record(s,{},ticket.chairId,'reorder');
+          queueEvent(s,'reorder',ticket.chairId);
           break;
         }
         case 'next': {

@@ -60,3 +60,5 @@ Con varios barberos, el cliente puede elegir uno o pedir el primero disponible s
 Los turnos de primera visita pueden sumar 0–15 minutos y mostrar una promo. No se usan para aprender la duración habitual. Nombre, WhatsApp, servicio y barbero solo se guardan para reutilizar en el dispositivo si el cliente marca «Recordarme»; la nota no se guarda en el dispositivo.
 
 En Ajustes > General puedes publicar la dirección, un enlace de Google Maps o Waze y los medios de pago del local.
+
+Pausas, reanudaciones, reorden y reasignaciones se guardan por separado en los últimos 300 eventos operativos. No cuentan como atención ni consumen el límite del historial de cortes.
