@@ -356,11 +356,19 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  await capturePanels(barber,browser,base);
  await tab(barber,'Fila');
  const config=await (await barber.request.get(base+'/api/v1/agenda')).json();
- const added=await barber.request.post(base+'/api/v1/agenda',{data:{...config,action:'settings',chairs:[...config.chairs,{name:'Yefri',specialty:'Barba'}]}});
+ const added=await barber.request.post(base+'/api/v1/agenda',{data:{...config,action:'settings',chairs:[...config.chairs,{name:'Yefri',specialty:'Barba'}],address:'Av. Duarte 10',mapsUrl:'https://www.google.com/maps/search/?api=1&query=Duarte',payments:['efectivo','transferencia']}});
  assert.equal(added.status(),200);
  const newcomer=await browser.newPage({viewport:{width:360,height:740}});
  await newcomer.goto(base+'/b/barberia-prueba');
  await newcomer.locator('#chairChoices').waitFor();
+ const locationCard=newcomer.locator('#locationCard');
+ await locationCard.waitFor();
+ assert.match(await locationCard.textContent(),/Av\. Duarte 10.*Efectivo.*Transferencia/s);
+ assert.equal(await locationCard.getByRole('link').getAttribute('rel'),'noopener noreferrer');
+ if(process.env.TURNO_SCREENSHOTS_DIR){
+  await locationCard.scrollIntoViewIfNeeded();
+  await newcomer.screenshot({path:join(process.env.TURNO_SCREENSHOTS_DIR,'4-como-llegar.png')});
+ }
  await newcomer.getByRole('radio',{name:/Yefri/}).check();
  if(process.env.TURNO_SCREENSHOTS_DIR)await newcomer.locator('#chairChoices').scrollIntoViewIfNeeded();
  if(process.env.TURNO_SCREENSHOTS_DIR)await newcomer.screenshot({path:join(process.env.TURNO_SCREENSHOTS_DIR,'1-elegir-barbero.png')});

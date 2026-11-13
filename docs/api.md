@@ -54,3 +54,5 @@ curl -H "Authorization: Bearer $TOKEN" --json '{"action":"next","chairId":"princ
 `chairId` en `join` es opcional en `shared` (vacío o `any` para cualquiera), y obligatorio en `individual` con varios barberos. El estado público agrega `chairs[].specialty`, `state`, `range` y `anyRange`. `reassign` recibe `chairId` y `revision`; desde agenda también `id`, desde fila requiere `X-Turno-Token`. Mantiene el lugar original.
 
 `join` acepta `firstVisit` y `note` (120 caracteres); `own` muestra únicamente los del titular. `settings` acepta `firstVisitExtra` (0–15) y `firstVisitMessage` (100 caracteres). El historial de cortes guarda el indicador de primera visita, sin nota ni contacto.
+
+`settings` acepta `address` (120 caracteres), `mapsUrl` (solo HTTPS de Google Maps o Waze) y `payments` (`efectivo`, `tarjeta`, `transferencia`). El estado público incluye estos tres campos.

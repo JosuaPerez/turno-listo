@@ -17,7 +17,8 @@
 <label class="consent"><input name="consent" type="checkbox" required><span>Acepto que la barbería use mi nombre, WhatsApp y nota para manejar mi turno y avisarme. Los datos de la fila se eliminan en 24 horas.</span></label>
 <button class="join-submit">Anotarme</button></form>
 <div class="card" id="own" hidden><h2>Mi turno</h2><p id="ownText"></p><p id="ownNote" hidden></p><p id="ownPromo" class="queue-badge assigned" hidden></p><p id="ownBarber" hidden></p><form id="ownReassign" hidden><label>Cambiar de barbero<select name="chairId" required></select></label><button class="secondary">Cambiar sin perder mi lugar</button></form><p class="quiet">Guarda tu enlace personal para ver el turno en otro celular. Compártelo solo contigo.</p><div class="actions"><button id="copyTicket" class="secondary">Copiar enlace</button><a id="saveTicket" class="btn secondary" target="_blank" rel="noopener noreferrer">Guardar en mi WhatsApp</a></div><p id="ticketFeedback" class="quiet" role="status"></p><div class="actions"><button class="secondary" id="leave">Salir de la fila</button><button class="secondary" id="erase">Borrar mis datos</button></div></div>
-<div class="card"><h2>Horario y servicios</h2><p id="publicHours" class="sub"></p><ul id="publicServices" class="list"></ul></div><p id="publicSaving" class="save-status" role="status"></p><p class="notice" id="publicError" role="status"></p>
+<div class="card"><h2>Horario y servicios</h2><p id="publicHours" class="sub"></p><ul id="publicServices" class="list"></ul></div><section id="locationCard" class="card" hidden><h2>Cómo llegar</h2><p id="addressText" hidden></p><a id="mapsLink" class="btn secondary" target="_blank" rel="noopener noreferrer" hidden>Abrir en el mapa</a><div id="publicPayments" class="actions"></div></section>
+<p id="publicSaving" class="save-status" role="status"></p><p class="notice" id="publicError" role="status"></p>
 <a hidden id="wa" class="btn secondary" target="_blank" rel="noopener">Escribir por WhatsApp</a>
 </section>
 <section id="admin" hidden>
@@ -74,7 +75,10 @@
    <details class="card settings-section" open><summary>General</summary>
     <label>Nombre de la barbería<input name="name" maxlength="60" required></label>
     <label>WhatsApp de la barbería<input name="phone" type="tel" maxlength="24"></label>
-    <label>Minutos extra para clientes nuevos<input name="firstVisitExtra" type="number" min="0" max="15" required></label><label>Mensaje o promo para clientes nuevos<input name="firstVisitMessage" maxlength="100"></label><div class="arrival-row"><label>Minutos de llegada<input name="noShowMinutes" type="number" min="1" max="30" required></label><label class="check-control"><input name="autoSkip" type="checkbox"><span>Quitar automáticamente</span></label></div>
+    <label>Dirección del local<input name="address" maxlength="120"></label>
+<label>Enlace de Google Maps o Waze<input name="mapsUrl" type="url" maxlength="2048"></label>
+<fieldset><legend>Medios de pago</legend><label class="check-control"><input name="payment" value="efectivo" type="checkbox">Efectivo</label><label class="check-control"><input name="payment" value="tarjeta" type="checkbox">Tarjeta</label><label class="check-control"><input name="payment" value="transferencia" type="checkbox">Transferencia</label></fieldset>
+<label>Minutos extra para clientes nuevos<input name="firstVisitExtra" type="number" min="0" max="15" required></label><label>Mensaje o promo para clientes nuevos<input name="firstVisitMessage" maxlength="100"></label><div class="arrival-row"><label>Minutos de llegada<input name="noShowMinutes" type="number" min="1" max="30" required></label><label class="check-control"><input name="autoSkip" type="checkbox"><span>Quitar automáticamente</span></label></div>
    </details>
    <details class="card settings-section" id="chairSection"><summary>Barberos</summary>
     <label>Tipo de fila<select name="mode"><option value="shared">Cualquiera puede atender (el cliente puede elegir barbero)</option><option value="individual">El cliente debe elegir barbero</option></select></label>

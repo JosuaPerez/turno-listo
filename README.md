@@ -58,3 +58,5 @@ El panel se puede instalar desde Ajustes > Cuenta en un navegador compatible. El
 Con varios barberos, el cliente puede elegir uno o pedir el primero disponible según el modo de fila. La espera se estima por barbero y la elección puede cambiarse sin volver al final. El enlace manual de WhatsApp incluye el barbero o indica el primero disponible.
 
 Los turnos de primera visita pueden sumar 0–15 minutos y mostrar una promo. No se usan para aprender la duración habitual. Nombre, WhatsApp, servicio y barbero solo se guardan para reutilizar en el dispositivo si el cliente marca «Recordarme»; la nota no se guarda en el dispositivo.
+
+En Ajustes > General puedes publicar la dirección, un enlace de Google Maps o Waze y los medios de pago del local.

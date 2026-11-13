@@ -32,7 +32,7 @@ function publicView(s,token){
   const own=t?{position:s.queue.filter(v=>!t.chairId||!v.chairId||v.chairId===t.chairId).indexOf(t)+1,range:range(predict(s,t)),status:'waiting',chairId:t.chairId??null,barber:s.chairs.find(c=>c.id===t.chairId)?.name}:active?{status:active.started?'serving':'called',deadline:active.deadline,chairId:activeChair?.id,barber:activeChair?.name}:null;
   const mine=t||active;
   if(own&&mine)Object.assign(own,{firstVisit:mine.firstVisit===true,note:mine.note||'',firstVisitMessage:mine.firstVisit?s.firstVisitMessage:''});
-  return {revision:s.revision,name:s.name,slug:s.slug,services:s.services,chairs,anyRange:estimate(null),mode:s.mode,hours:s.hours,open:reception(s),busy:!!activeTickets(s).length,waiting:s.queue.length,ahead:s.queue.length+activeTickets(s).length,range:range(predict(s)),phone:s.phone,own};
+  return {revision:s.revision,name:s.name,slug:s.slug,services:s.services,chairs,anyRange:estimate(null),address:s.address,mapsUrl:s.mapsUrl,payments:s.payments,mode:s.mode,hours:s.hours,open:reception(s),busy:!!activeTickets(s).length,waiting:s.queue.length,ahead:s.queue.length+activeTickets(s).length,range:range(predict(s)),phone:s.phone,own};
 }
 function refreshNotices(s){
   if(!reception(s)||!activeTickets(s).length)return;
@@ -45,6 +45,18 @@ function refreshNotices(s){
   }
 }
 const noteText=(value,limit)=>typeof value==='string'?value.replace(/[\u0000-\u001f\u007f-\u009f]/g,' ').trim().slice(0,limit):'';
+const paymentTypes=['efectivo','tarjeta','transferencia'];
+function validatedMap(value){
+  if(value==='')return '';
+  if(typeof value!=='string'||value.length>2048||!/^https:\/\//i.test(value))return null;
+  try{
+    const url=new URL(value);
+    if(url.username||url.password||url.port)return null;
+    if(['maps.google.com','maps.app.goo.gl','waze.com','www.waze.com','ul.waze.com'].includes(url.hostname))return url.href;
+    if(['google.com','www.google.com','goo.gl'].includes(url.hostname)&&/^\/maps(?:\/|$)/.test(url.pathname))return url.href;
+  }catch{}
+  return null;
+}
 function choice(s,id){
   if(id==null||id===''||id==='any')return s.chairs.length===1&&s.mode==='individual'?s.chairs[0].id:s.mode==='shared'?null:undefined;
   return s.chairs.some(c=>c.id===id)?id:undefined;
@@ -290,6 +302,16 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
           if(!Number.isInteger(extra)||extra<0||extra>15)return fail('El tiempo extra debe ser de 0 a 15 minutos.');
           s.firstVisitExtra=extra;
           if(input.firstVisitMessage!==undefined)s.firstVisitMessage=noteText(input.firstVisitMessage,100);
+          if(input.mapsUrl!==undefined){
+            const map=validatedMap(typeof input.mapsUrl==='string'?input.mapsUrl.trim():input.mapsUrl);
+            if(map===null)return fail('Usa un enlace HTTPS de Google Maps o Waze.');
+            s.mapsUrl=map;
+          }
+          if(input.address!==undefined)s.address=noteText(input.address,120);
+          if(input.payments!==undefined){
+            if(!Array.isArray(input.payments)||input.payments.some(p=>!paymentTypes.includes(p)))return fail('Revisa los medios de pago.');
+            s.payments=paymentTypes.filter(p=>input.payments.includes(p));
+          }
           s.name=name;s.phone=phone;s.services=services;s.chairs=chairs;s.mode=input.mode;s.hours=hours;
           s.noShowMinutes=noShowMinutes;s.autoSkip=input.autoSkip===true;
           if(input.onboarded===true)s.onboarded=true;

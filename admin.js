@@ -323,7 +323,8 @@ function addService(service={}){
 
 function settingsPayload(){
  const form=$('settings'), f=form.elements;
- const {name,phone,mode,noShowMinutes,firstVisitExtra,firstVisitMessage}=values(form);
+ const {name,phone,mode,noShowMinutes,firstVisitExtra,firstVisitMessage,address,mapsUrl}=values(form);
+ const payments=[...form.querySelectorAll('[name=payment]:checked')].map(input=>input.value);
  const chairs=[...$('chairSettings').children].map(row=>({id:row.dataset.id,name:row.children[0].value,specialty:row.children[1].value}));
  const services=[...$('serviceSettings').children].map(row=>{
   const [name,minutes,price]=row.querySelectorAll('input');
@@ -331,7 +332,7 @@ function settingsPayload(){
  });
  const hours={enabled:f.hoursEnabled.checked,from:f.hoursFrom.value,to:f.hoursTo.value,
   days:[...form.querySelectorAll('input[name=day]:checked')].map(v=>Number(v.value))};
- return {name,phone,mode,noShowMinutes,firstVisitExtra,firstVisitMessage,chairs,services,hours,autoSkip:f.autoSkip.checked};
+ return {name,phone,address,mapsUrl,payments,mode,noShowMinutes,firstVisitExtra,firstVisitMessage,chairs,services,hours,autoSkip:f.autoSkip.checked};
 }
 
 function syncSaveButton(){
@@ -349,7 +350,8 @@ function updateDirty(){
 
 function fillSettings(s){
  const form=$('settings'), f=form.elements;
- f.name.value=s.name;f.phone.value=s.phone;f.firstVisitExtra.value=s.firstVisitExtra;f.firstVisitMessage.value=s.firstVisitMessage;f.mode.value=s.mode;f.noShowMinutes.value=s.noShowMinutes;f.autoSkip.checked=s.autoSkip;
+ f.name.value=s.name;f.phone.value=s.phone;f.address.value=s.address;f.mapsUrl.value=s.mapsUrl;
+ for(const input of form.querySelectorAll('[name=payment]'))input.checked=s.payments.includes(input.value);f.firstVisitExtra.value=s.firstVisitExtra;f.firstVisitMessage.value=s.firstVisitMessage;f.mode.value=s.mode;f.noShowMinutes.value=s.noShowMinutes;f.autoSkip.checked=s.autoSkip;
  $('chairSettings').replaceChildren();s.chairs.forEach(addChair);
  $('serviceSettings').replaceChildren();s.services.forEach(addService);
  f.hoursEnabled.checked=s.hours.enabled;f.hoursFrom.value=s.hours.from;f.hoursTo.value=s.hours.to;

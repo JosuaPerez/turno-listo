@@ -518,3 +518,18 @@ test('primera visita suma minutos y protege la nota hasta su caducidad',async()=
  assert.equal((await (await get('estado',{headers:{'X-Turno-Token':joined.token}})).json()).own,null);
  assert.deepEqual((await store.read()).queue,[]);
 });
+
+test('Cómo llegar acepta solo enlaces de mapa HTTPS permitidos',async()=>{
+ const repo=localRepository(mkdtempSync(tmpdir()+'/turno-maps-'));
+ const s=newShop('mapa','Mapa'), hash=await makePassword(crypto.randomUUID(),crypto.randomUUID()), key=crypto.randomUUID().replaceAll('-','').repeat(2);
+ await repo.createAccount({slug:s.slug,email:'maps@example.test',hash},s);
+ await repo.createSession(await digest(key),s.slug,Date.now()+60000,hash);
+ const change=mapsUrl=>route(new Request('https://example.test/api/v1/agenda',{method:'POST',headers:{Authorization:'Bearer '+key},body:JSON.stringify({...s,action:'settings',address:'Av. Duarte 10',mapsUrl,payments:['efectivo']})}),repo);
+ for(const url of ['javascript:alert(1)','data:text/plain,mapa','http://waze.com/live-map','https://waze.com.example.test/','https://google.com/search','https://maps.google.com@evil.test/maps'])
+  assert.equal((await change(url)).status,400,url);
+ for(const url of ['https://www.google.com/maps/search/?api=1&query=Duarte','https://maps.app.goo.gl/example','https://goo.gl/maps/example','https://ul.waze.com/ul?ll=18.4,-69.9'])
+  assert.equal((await change(url)).status,200,url);
+ const data=await (await route(new Request('https://example.test/api/v1/b/mapa/estado'),repo)).json();
+ assert.equal(data.address,'Av. Duarte 10');assert.deepEqual(data.payments,['efectivo']);
+ assert.match(data.mapsUrl,/^https:\/\/ul\.waze\.com\//);
+});

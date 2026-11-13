@@ -49,6 +49,12 @@ function publicRender(s){
  $('publicServices').replaceChildren(...s.services.map(v=>{
    const li=element('li',null,'row');li.append(element('span',v.name+' · '+v.minutes+' min'),element('strong',priceLabel(v)));return li;
  }));
+ $('locationCard').hidden=!s.address&&!s.mapsUrl&&!s.payments?.length;
+ $('addressText').hidden=!s.address;msg('addressText',s.address||'');
+ const maps=$('mapsLink');maps.hidden=!s.mapsUrl;
+ if(s.mapsUrl)maps.href=s.mapsUrl;else maps.removeAttribute('href');
+ const labels={efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia'};
+ $('publicPayments').replaceChildren(...(s.payments||[]).filter(p=>labels[p]).map(p=>element('span',labels[p],'queue-badge')));
  const occupied=s.busy||s.waiting>0;
  msg('tag',!s.open?'Pausada':occupied?'Atendiendo':'Disponible');
  msg('headline',!s.open?'Por ahora no recibimos turnos':s.range[1]>0?'Hay '+s.ahead+' antes que tú'+' · espera aprox. '+waitLabel(s.range):'Puedes pasar ahora');
