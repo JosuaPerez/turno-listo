@@ -48,3 +48,5 @@ curl -H "Authorization: Bearer $TOKEN" --json '{"action":"next","chairId":"princ
 ```
 
 `finish-next` recibe `chairId` e `id` del corte en curso. Registra su duración real y llama al siguiente turno elegible en una sola actualización de la fila. Si no hay turno elegible, solo termina. Devuelve `409` si el corte ya cambió.
+
+`pause` recibe `chairId` y `minutes` (5, 10 o 15); `resume` recibe `chairId`. El sillón debe estar libre. `reorder` recibe `id`, `direction` (`up`, `down`, `first`) y la `revision` que vio el panel. Devuelve `409` si la fila cambió y `400` si no se puede mover en esa dirección. En modo individual solo cambia el orden de ese sillón.

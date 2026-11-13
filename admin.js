@@ -41,6 +41,7 @@ const currency=value=>'RD$ '+rd.format(value??0);
 const shareUrl=url=>'https://wa.me/?text='+encodeURIComponent('Anótate en la fila de la barbería: '+url);
 const customerUrl=slug=>new URL('/b/'+slug,location.origin).href;
 const serviceName=(s,id)=>s.services.find(service=>service.id===id)?.name||'Servicio';
+const paused=chair=>Number(chair.pausedUntil)>Date.now();
 const hasPrices=s=>s.services.some(v=>v.price!=null);
 const dismissKey=()=> 'turno-qr-dismissed:'+state.slug;
 
@@ -157,9 +158,19 @@ function renderMetrics(s){
 function renderChairs(s){
  $('chairs').replaceChildren(...s.chairs.map(chair=>{
   const t=s.active[chair.id], card=element('section',null,'card chair-card'), top=element('div',null,'chair-top');
-  top.append(element('h2',chair.name),element('span',!t?'Libre':t.started?'En el sillón':'Esperando llegada','chair-status'));
+  top.append(element('h2',chair.name),element('span',!t?(paused(chair)?'En pausa':'Libre'):t.started?'En el sillón':'Esperando llegada','chair-status'));
   card.append(top);
-  if(!t)return card;
+  if(!t){
+   const actions=element('div',null,'actions pause-actions');
+   if(paused(chair)){
+    const timer=element('p',null,'chair-timer');timer.dataset.pausedUntil=chair.pausedUntil;
+    card.append(timer);
+    actions.append(button('Volver ya',()=>change('resume',{chairId:chair.id}),true));
+   }else{
+    for(const minutes of [5,10,15])actions.append(button('Pausa '+minutes+' min',()=>change('pause',{chairId:chair.id,minutes}),true));
+   }
+   card.append(actions);return card;
+  }
   card.append(element('p',t.name||'Cliente sin nombre','chair-client'));
   const timing=element('div',null,'chair-meta');
   timing.append(element('span',serviceName(s,t.serviceId),'quiet'));
@@ -168,7 +179,7 @@ function renderChairs(s){
   else timer.dataset.deadline=t.deadline;
   const fields={id:t.id,chairId:chair.id}, actions=element('div',null,'actions');
   if(t.started){
-   const eligible=s.queue.some(v=>s.mode==='shared'||v.chairId===chair.id);
+   const eligible=!paused(chair)&&s.queue.some(v=>s.mode==='shared'||v.chairId===chair.id);
    if(eligible)actions.append(button('Terminar y llamar al siguiente',()=>change('finish-next',fields)));
    actions.append(button('Terminar corte',()=>change('finish',fields),eligible));
   }
@@ -178,7 +189,7 @@ function renderChairs(s){
   timing.append(timer);card.append(timing,actions);
   return card;
  }));
- const eligible=s.chairs.filter(chair=>!s.active[chair.id]&&s.queue.some(t=>s.mode==='shared'||t.chairId===chair.id));
+ const eligible=s.chairs.filter(chair=>!paused(chair)&&!s.active[chair.id]&&s.queue.some(t=>s.mode==='shared'||t.chairId===chair.id));
  $('nextBar').replaceChildren(...eligible.map(chair=>button(s.chairs.length===1?'Llamar al siguiente':'Llamar · '+chair.name,()=>change('next',{chairId:chair.id}))));
  $('nextBar').hidden=eligible.length===0;
  refreshTimers();
@@ -191,7 +202,17 @@ function renderQueue(s){
   info.append(element('strong',(i+1)+'. '+t.name),element('small',serviceName(s,t.serviceId)+' · '+t.minutes+' min'));
   const remove=button('Quitar',()=>change('remove',{id:t.id}),true);
   remove.setAttribute('aria-label','Quitar a '+t.name);
-  row.append(info,remove);return row;
+  const group=s.queue.filter(other=>s.mode==='shared'||other.chairId===t.chairId);
+  const position=group.indexOf(t);
+  const controls=element('div',null,'queue-actions');
+  const move=direction=>change('reorder',{id:t.id,direction,revision:state.revision});
+  const up=button('Subir',()=>move('up'),true),down=button('Bajar',()=>move('down'),true);
+  up.disabled=position===0;down.disabled=position===group.length-1;
+  up.setAttribute('aria-label','Subir a '+t.name);down.setAttribute('aria-label','Bajar a '+t.name);
+  const menu=element('details',null,'queue-menu'), summary=element('summary','Más');
+  const first=button('Pasar primero',()=>move('first'),true);first.disabled=position===0;
+  menu.append(summary,first);controls.append(up,down,menu,remove);
+  row.append(info,controls);return row;
  });
  if(!rows.length){
   const empty=element('li','Comparte tu QR para que tus clientes se anoten.','quiet');
@@ -226,6 +247,11 @@ function render(s){
 }
 
 function refreshTimers(){
+ for(const el of document.querySelectorAll('[data-paused-until]')){
+  const left=Math.max(0,Math.ceil((Number(el.dataset.pausedUntil)-Date.now())/1000));
+  el.textContent='Vuelve en '+Math.floor(left/60)+':'+String(left%60).padStart(2,'0');
+  if(!left&&state){render(state);return;}
+ }
  for(const el of document.querySelectorAll('[data-deadline], [data-started]')){
   const now=Date.now(), started=Number(el.dataset.started);
   const delta=started?Math.floor((now-started)/1000):Math.ceil((Number(el.dataset.deadline)-now)/1000);

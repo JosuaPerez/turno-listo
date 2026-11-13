@@ -105,3 +105,10 @@ label{margin:8px 0}fieldset{border:0;padding:0;margin:0;min-width:0}select{font:
 .onboarding h1 { font-size:clamp(2rem,9vw,3.5rem); }
 .onboarding #wizardShare a { overflow-wrap:anywhere; }
 .onboarding .notice:empty { display:none; }
+
+.pause-actions { gap:5px; }
+.pause-actions button,.queue-actions button { font-size:.76rem; padding-inline:7px; }
+.queue-actions { display:flex; gap:4px; flex-wrap:wrap; align-items:center; }
+.queue-menu summary { display:flex; align-items:center; justify-content:center; min-width:44px; color:var(--lime); font-size:.78rem; }
+.queue-menu { position:relative; }
+.queue-menu button { position:absolute; right:0; top:100%; z-index:2; background:var(--panel); white-space:nowrap; }

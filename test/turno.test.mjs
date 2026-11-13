@@ -427,3 +427,40 @@ test('una barbería existente se considera configurada y el registro nuevo empie
  assert.equal(register.status,200);
  assert.equal((await repo.shop('nueva').read()).onboarded,false);
 });
+
+test('pausas y reorden mantienen los límites del sillón, la revisión y el historial',async()=>{
+ const repo=localRepository(mkdtempSync(tmpdir()+'/turno-pause-'));
+ const shop=newShop('prueba','Prueba'), now=Date.now();
+ const hash=await makePassword(crypto.randomUUID(),crypto.randomUUID());
+ const credential=crypto.randomUUID().replaceAll('-','').repeat(2);
+ shop.mode='individual';shop.chairs.push({id:'otro',name:'Otro'});
+ const ticket=(id,chairId)=>({id,name:id,chairId,serviceId:'corte',minutes:30,joined:now});
+ shop.queue=[ticket('uno','principal'),ticket('otro','otro'),ticket('dos','principal')];
+ shop.queue[2].soonNotified=true;
+ await repo.createAccount({slug:shop.slug,email:'pausa@example.test',hash},shop);
+ await repo.createSession(await digest(credential),shop.slug,now+120000,hash);
+ const call=body=>route(new Request('https://example.test/api/v1/agenda',{method:'POST',headers:{Authorization:'Bearer '+credential},body:JSON.stringify(body)}),repo);
+ assert.equal((await call({action:'reorder',id:'uno',direction:'up',revision:0})).status,400);
+ const moves=await Promise.all([
+  call({action:'reorder',id:'dos',direction:'first',revision:0}),
+  call({action:'reorder',id:'dos',direction:'up',revision:0})
+ ]);
+ assert.deepEqual(moves.map(r=>r.status).sort(),[200,409]);
+ const store=repo.shop(shop.slug);
+ let current=await store.read();
+ assert.deepEqual(current.queue.map(t=>t.id),['dos','otro','uno']);
+ assert.equal(current.queue[0].soonNotified,true);
+ assert.equal((await call({action:'pause',chairId:'principal',minutes:10})).status,200);
+ current=await store.read();
+ assert.deepEqual(range(predict(current,current.queue[0],current.chairs[0].pausedUntil-10*60000)),[10,15]);
+ assert.equal(predict(current,current.queue[1]),0);
+ assert.equal((await call({action:'next',chairId:'principal'})).status,409);
+ assert.equal((await call({action:'next',chairId:'otro'})).status,200);
+ current=await store.read();
+ assert.deepEqual(current.history.map(h=>h.outcome),['reorder','pause']);
+ for(const h of current.history)assert.equal('name' in h||'phone' in h||'token' in h,false);
+ const revision=current.revision;current.chairs[0].pausedUntil=Date.now()-1;current.revision++;
+ assert.equal(await store.write(current,revision),true);
+ assert.equal((await call({action:'next',chairId:'principal'})).status,200);
+ assert.equal((await store.read()).active.principal.id,'dos');
+});

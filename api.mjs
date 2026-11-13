@@ -184,6 +184,32 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
       switch(input.action){
         case 'qr-shared':s.qrShared=true;break;
         case 'toggle':s.open=!s.open;break;
+        case 'pause':
+        case 'resume': {
+          const chair=s.chairs.find(c=>c.id===input.chairId);
+          if(!chair||s.active[chair.id])return fail('El sillón no está libre.',409);
+          if(input.action==='pause'){
+            if(![5,10,15].includes(input.minutes))return fail('Elige una pausa de 5, 10 o 15 minutos.');
+            chair.pausedUntil=Date.now()+input.minutes*60000;
+          }else delete chair.pausedUntil;
+          record(s,{},chair.id,input.action);
+          break;
+        }
+        case 'reorder': {
+          if(input.revision!==previous.revision)return fail('La fila cambió. Intenta de nuevo.',409);
+          const index=s.queue.findIndex(t=>t.id===input.id);
+          if(index<0)return fail('Ese turno ya no está en espera.',409);
+          const ticket=s.queue[index];
+          const positions=s.queue.flatMap((t,i)=>s.mode==='shared'||t.chairId===ticket.chairId?[i]:[]);
+          const from=positions.indexOf(index);
+          const destination={up:from-1,down:from+1,first:0}[input.direction];
+          if(!Number.isInteger(destination)||destination===from||destination<0||destination>=positions.length)return fail('No se puede mover el turno en esa dirección.');
+          const ordered=positions.map(i=>s.queue[i]);
+          ordered.splice(destination,0,ordered.splice(from,1)[0]);
+          positions.forEach((i,j)=>{s.queue[i]=ordered[j];});
+          record(s,{},ticket.chairId,'reorder');
+          break;
+        }
         case 'next': {
           const chair=s.chairs.find(c=>c.id===input.chairId);
           const t=chair&&nextFor(s,chair);
@@ -228,7 +254,7 @@ async function handleRoute(request,repo,env,ip,defer,url,pathname){
             id:s.services.some(a=>a.id===v?.id)?v.id:crypto.randomUUID(),name:clean(v?.name,45),minutes:Number(v?.minutes),
             price:v?.price===''||v?.price==null?null:Number(v.price)
           })):[];
-          const chairs=Array.isArray(input.chairs)?input.chairs.map(v=>({id:s.chairs.some(c=>c.id===v?.id)?v.id:crypto.randomUUID(),name:clean(v?.name,35)})):[];
+          const chairs=Array.isArray(input.chairs)?input.chairs.map(v=>({id:s.chairs.some(c=>c.id===v?.id)?v.id:crypto.randomUUID(),name:clean(v?.name,35),pausedUntil:s.chairs.find(c=>c.id===v?.id)?.pausedUntil})):[];
           if(services.length<1||services.length>12||new Set(services.map(v=>v.id)).size!==services.length||services.some(v=>!v.name||v.name.length>45||!Number.isInteger(v.minutes)||v.minutes<5||v.minutes>180||(v.price!==null&&(!Number.isFinite(v.price)||v.price<0||v.price>100000))))return fail('Revisa el catálogo.');
           if(chairs.length<1||chairs.length>8||new Set(chairs.map(v=>v.id)).size!==chairs.length||chairs.some(c=>!c.name||c.name.length>35)||!['shared','individual'].includes(input.mode))return fail('Revisa los sillones y el tipo de fila.');
           if((s.queue.length||activeTickets(s).length)&&(input.mode!==s.mode||s.chairs.some(v=>!chairs.some(c=>c.id===v.id))||s.services.some(v=>!services.some(c=>c.id===v.id))))return fail('Vacía la fila antes de quitar servicios, sillones o cambiar el tipo de fila.',409);

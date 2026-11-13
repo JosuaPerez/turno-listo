@@ -83,6 +83,9 @@ async function capturePanels(barber,browser,base){
   assert.equal(r.status(),200);
  }
  await text(barber,'#queueHeading','En espera (3)');
+ await barber.getByRole('button',{name:'Subir a Joel Ramírez'}).click();
+ await text(barber,'#queue','1. Joel Ramírez');
+ await barber.screenshot({path:join(output,'6-reorden.png')});
  await barber.getByRole('button',{name:'Terminar y llamar al siguiente',exact:true}).waitFor();
  const visitor=await browser.newPage({viewport:{width:360,height:740}});
  await visitor.goto(base+'/b/barberia-prueba');
@@ -295,6 +298,12 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  assert.equal(await barber.title(),'Turno Listo');
  await text(barber,'#queue','Cliente Prueba');
  assert.equal(await barber.locator('#nextBar').isVisible(),true);
+ await barber.getByRole('button',{name:'Pausa 5 min',exact:true}).click();
+ await text(barber,'#chairs','En pausa');
+ assert.equal(await barber.locator('#nextBar').isVisible(),false);
+ if(process.env.TURNO_SCREENSHOTS_DIR)await barber.screenshot({path:join(process.env.TURNO_SCREENSHOTS_DIR,'6-pausa.png')});
+ await barber.getByRole('button',{name:'Volver ya'}).click();
+ await barber.getByRole('button',{name:'Llamar al siguiente'}).waitFor();
  await tab(barber,'Compartir');
  assert.equal(await barber.locator('#nextBar').isVisible(),false);
  await tab(barber,'Ajustes');

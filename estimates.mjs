@@ -2,7 +2,11 @@ export const firstChair={id:'principal',name:'Sillón 1'};
 export function chairAccepts(s,t,chair){
   return s.mode==='shared'||t.chairId===chair.id;
 }
+export function pauseRemaining(chair,now=Date.now()){
+  return Math.max(0,(chair.pausedUntil||0)-now);
+}
 export function nextFor(s,chair){
+  if(pauseRemaining(chair))return undefined;
   return s.queue.find(t=>chairAccepts(s,t,chair));
 }
 export function serviceMinutes(s,serviceId,chairId,fallback){
@@ -17,7 +21,7 @@ export function range(minutes){
 export function predict(s,target,now=Date.now()){
   const chairs=s.chairs.map(chair=>{
     const active=s.active[chair.id];
-    return {chair,free:active?Math.max(0,Math.ceil(((active.started||Math.max(active.deadline||now,now))+active.minutes*60000-now)/60000)):0};
+    return {chair,free:Math.max(Math.ceil(pauseRemaining(chair,now)/60000),active?Math.max(0,Math.ceil(((active.started||Math.max(active.deadline||now,now))+active.minutes*60000-now)/60000)):0)};
   });
   const ordered=target?s.queue.slice(0,s.queue.indexOf(target)):s.queue;
   for(const t of ordered){
