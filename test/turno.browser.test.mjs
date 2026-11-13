@@ -198,6 +198,16 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  assert.equal(await barber.locator('#posterQr').evaluate(img=>img.complete&&img.naturalWidth>0),true);
  assert.equal(await barber.locator('#panelTabs').isVisible(),false);
  if(process.env.TURNO_SCREENSHOTS_DIR)await barber.screenshot({path:join(process.env.TURNO_SCREENSHOTS_DIR,'3-afiche.png')});
+ for(const format of ['Letter','A4']){
+  const pdf=await barber.pdf({format});
+  assert.equal((pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).length,1,format+' tiene una sola página');
+ }
+ if(process.env.TURNO_SCREENSHOTS_DIR){
+  const viewport=barber.viewportSize();
+  await barber.setViewportSize({width:360,height:740});
+  await barber.screenshot({path:join(process.env.TURNO_SCREENSHOTS_DIR,'6-afiche.png')});
+  await barber.setViewportSize(viewport);
+ }
  await barber.emulateMedia({media:null});
  await tab(barber,'Resumen');
  await text(barber,'#stats','Hora pico');

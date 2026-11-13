@@ -92,10 +92,13 @@ label{margin:8px 0}fieldset{border:0;padding:0;margin:0;min-width:0}select{font:
  @page { size:auto; margin:12mm; }
  html, body { background:white; color:black; color-scheme:light; }
  body > :not(#poster) { display:none !important; }
- #poster { display:block; max-width:180mm; margin:0 auto; text-align:center; break-inside:avoid; }
+ #poster { max-width:180mm; height:100vh; margin:0 auto; text-align:center; break-inside:avoid; display:flex; flex-direction:column; justify-content:center; align-items:center; }
  #poster h1 { font-size:32pt; letter-spacing:normal; }
  #poster p { font-size:17pt; overflow-wrap:anywhere; }
- #poster img { display:block; width:min(135mm,100%); margin:8mm auto; }
+ #poster img { display:block; width:min(150mm,100%); margin:4mm auto; }
+ #poster h1, #poster p { margin:2mm 0; }
+ #poster .poster-steps { font-size:14pt; text-align:left; margin:3mm 0; }
+ #poster #posterUrl { font-size:11pt; }
  #poster small { font-size:11pt; }
 }
 
@@ -124,3 +127,5 @@ label{margin:8px 0}fieldset{border:0;padding:0;margin:0;min-width:0}select{font:
 .queue-edit { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px; }
 
 .turn-note { margin:3px 0; font-size:.85rem; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
+
+@media print and (max-width:400px){ #poster { height:auto; padding:16px; } #poster h1 { font-size:24px; } #poster img { width:100%; } #poster p, #poster .poster-steps { font-size:16px; } }
