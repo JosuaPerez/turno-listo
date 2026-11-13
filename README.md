@@ -52,3 +52,5 @@ El plan para separar el JSON de cada barbería en tablas está en [docs/escalado
 Consulta [la guía de la API v1](docs/api.md) para usar Turno Listo desde un cliente propio.
 
 El sonido de nuevos turnos se activa después de tocar el panel y se puede apagar por dispositivo en Ajustes > Cuenta. Safari en iPhone no admite vibración web.
+
+El panel se puede instalar desde Ajustes > Cuenta en un navegador compatible. El service worker usa caché versionada para el shell y red primero para HTML, CSS y scripts. Las solicitudes de la API y enlaces de turno con `?t=` quedan fuera de la caché. Para regenerar los iconos, instala las dependencias de prueba y ejecuta `node generate-icons.mjs`.

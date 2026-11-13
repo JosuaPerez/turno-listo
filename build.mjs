@@ -1,9 +1,15 @@
 import {mkdirSync,readFileSync,writeFileSync,copyFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {Script} from 'node:vm';
 
 const html=JSON.stringify(readFileSync('index.html','utf8'));
 const asset=(type,path)=>[type,readFileSync(path,'utf8')];
 const assets=JSON.stringify({
+  '/manifest.webmanifest':asset('application/manifest+json','manifest.webmanifest'),
+  '/offline.html':asset('text/html','offline.html'),
+  '/assets/icon-192.png':['image/png',readFileSync('icon-192.png').toString('base64'),true],
+  '/assets/icon-512.png':['image/png',readFileSync('icon-512.png').toString('base64'),true],
+  '/assets/icon-maskable-512.png':['image/png',readFileSync('icon-maskable-512.png').toString('base64'),true],
   '/assets/favicon.svg':asset('image/svg+xml','favicon.svg'),
   '/assets/app.js':asset('text/javascript','app.js'),
   '/assets/shared.js':asset('text/javascript','shared.js'),
@@ -12,6 +18,9 @@ const assets=JSON.stringify({
   '/assets/qrcode.js':asset('text/javascript','vendor/qrcode.js'),
   '/assets/app.css':asset('text/css','app.css')
 });
+const swSource=readFileSync('sw.js','utf8');
+const swVersion=createHash('sha256').update(swSource).update(html).update(assets).digest('hex').slice(0,16);
+const sw=JSON.stringify(swSource.replace('__BUILD__',swVersion));
 const modules=['estimates','notifications','stats','http','shop','auth','repository','security','password-reset','api'];
 const identifiers=/^[A-Za-z_$][\w$]*$/;
 function names(list){
@@ -51,13 +60,14 @@ export function bundle(namesInOrder,read){
   }).join('\n');
 }
 const api=bundle(modules,name=>readFileSync(name+'.mjs','utf8'));
-const worker='const html='+html+', assets='+assets+';\n'+String.raw`
+const worker='const html='+html+', assets='+assets+', sw='+sw+';\n'+String.raw`
 async function handle(request,env,ctx){
   const path=new URL(request.url).pathname;
   if(path==='/favicon.ico')return new Response(null,{status:308,headers:{Location:'/assets/favicon.svg'}});
+  if(path==='/sw.js')return new Response(sw,{headers:{'Content-Type':'text/javascript; charset=utf-8','Cache-Control':'no-cache','Service-Worker-Allowed':'/'}});
   if(Object.hasOwn(assets,path)){
-    const [type,body]=assets[path];
-    return new Response(body,{headers:{'Content-Type':type+'; charset=utf-8'}});
+    const [type,body,binary]=assets[path];
+    return new Response(binary?Uint8Array.from(atob(body),c=>c.charCodeAt(0)):body,{headers:{'Content-Type':binary?type:type+'; charset=utf-8'}});
   }
   if(path==='/'||path==='/barbero'||path==='/restablecer'||/^\/b\/[a-z0-9-]+$/.test(path))return new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
   return __api.route(request,__repository.repository(env.DB),{...env,TURNO_RUNTIME:'worker'},request.headers.get('CF-Connecting-IP')||'unknown',ctx.waitUntil.bind(ctx));

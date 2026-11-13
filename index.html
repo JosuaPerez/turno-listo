@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#171915"><title>Turno Listo · Barbería</title>
-<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg"><link rel="stylesheet" href="/assets/app.css"><script type="module" src="/assets/app.js"></script></head>
+<link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/assets/icon-192.png"><link rel="icon" type="image/svg+xml" href="/assets/favicon.svg"><link rel="stylesheet" href="/assets/app.css"><script type="module" src="/assets/app.js"></script></head>
 <body><header><a class="brand" href="/"><span class="mark" aria-hidden="true"></span>Turno Listo</a><a id="nav" class="nav" href="/" hidden>Vista de clientes</a></header>
 <main><section id="resetView" hidden><h1>Nueva contraseña</h1><form id="resetForm" class="card lock"><label>Contraseña nueva<input name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label><button>Guardar contraseña</button></form><p id="resetStatus" role="status"></p><a class="btn secondary" href="/barbero">Volver al panel</a></section>
 <section id="client" hidden>
@@ -87,7 +87,7 @@
    </details>
    <p id="settingsStatus" class="feedback" role="status"></p>
   </form>
-  <details class="card settings-section" id="accountSection"><summary>Cuenta</summary><label class="check-control"><input id="turnSound" type="checkbox"><span>Sonido de nuevos turnos</span></label><button id="logout" type="button" class="secondary">Cerrar sesión</button></details>
+  <details class="card settings-section" id="accountSection"><summary>Cuenta</summary><button id="installApp" type="button" hidden>Instalar app</button><p id="iosInstall" class="quiet" hidden>Toca Compartir y luego Añadir a pantalla de inicio</p><label class="check-control"><input id="turnSound" type="checkbox"><span>Sonido de nuevos turnos</span></label><button id="logout" type="button" class="secondary">Cerrar sesión</button></details>
  </section>
  <div class="panel-bottom" id="panelBottom">
  <nav class="panel-tabs" role="tablist" aria-label="Panel del barbero" id="panelTabs">

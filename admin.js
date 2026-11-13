@@ -384,7 +384,25 @@ async function copy(value,status,onCopy){
  catch{msg(status,value);}
 }
 
+function setupInstall(){
+ let installPrompt;
+ const button=$('installApp');
+ window.addEventListener('beforeinstallprompt',event=>{
+  event.preventDefault();installPrompt=event;button.hidden=false;
+ });
+ window.addEventListener('appinstalled',()=>{installPrompt=null;button.hidden=true;});
+ button.onclick=async()=>{
+  if(!installPrompt)return;
+  const prompt=installPrompt;installPrompt=null;button.hidden=true;
+  try{await prompt.prompt();}catch{}
+ };
+ const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+ $('iosInstall').hidden=!ios||navigator.standalone===true;
+ if('serviceWorker' in navigator)void navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{});
+}
+
 export function startAdmin(){
+ setupInstall();
  $('admin').hidden=false;$('nav').hidden=false;$('barberFooter').hidden=true;
  document.body.classList.add('admin-page');setupTabs();
  for(const id of ['login','register']){

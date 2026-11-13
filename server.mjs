@@ -1,6 +1,6 @@
 import {createServer} from 'node:http';
 import {readFileSync} from 'node:fs';
-import {randomBytes} from 'node:crypto';
+import {createHash,randomBytes} from 'node:crypto';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {maintain,route} from './api.mjs';
@@ -12,6 +12,11 @@ const env={...process.env,TURNO_RATE_SALT:process.env.TURNO_RATE_SALT||randomByt
 const repo=localRepository();
 const host=env.TURNO_HOST||'127.0.0.1', port=Number(env.PORT||8787);
 const assets={
+  '/manifest.webmanifest':['application/manifest+json',readFileSync(join(root,'manifest.webmanifest'))],
+  '/offline.html':['text/html',readFileSync(join(root,'offline.html'))],
+  '/assets/icon-192.png':['image/png',readFileSync(join(root,'icon-192.png'))],
+  '/assets/icon-512.png':['image/png',readFileSync(join(root,'icon-512.png'))],
+  '/assets/icon-maskable-512.png':['image/png',readFileSync(join(root,'icon-maskable-512.png'))],
   '/assets/favicon.svg': ['image/svg+xml',readFileSync(join(root,'favicon.svg'))],
   '/assets/app.js': ['text/javascript',readFileSync(join(root,'app.js'))],
   '/assets/shared.js': ['text/javascript',readFileSync(join(root,'shared.js'))],
@@ -21,6 +26,10 @@ const assets={
   '/assets/app.css': ['text/css',readFileSync(join(root,'app.css'))]
 };
 const html=readFileSync(join(root,'index.html'));
+const swSource=readFileSync(join(root,'sw.js'),'utf8');
+const version=createHash('sha256').update(swSource).update(html);
+for(const [,data] of Object.values(assets))version.update(data);
+const sw=swSource.replace('__BUILD__',version.digest('hex').slice(0,16));
 let maintaining=false;
 setInterval(async()=>{
   if(maintaining)return;
@@ -39,6 +48,7 @@ const server=createServer(async (req,res)=>{
     const url=new URL(req.url,'http://'+(req.headers.host||'localhost'));
     pathname=url.pathname;
     if(url.pathname==='/favicon.ico')return await send(new Response(null,{status:308,headers:{Location:'/assets/favicon.svg'}}));
+    if(pathname==='/sw.js')return await send(new Response(sw,{headers:{'Content-Type':'text/javascript; charset=utf-8','Cache-Control':'no-cache','Service-Worker-Allowed':'/'}}));
     if(Object.hasOwn(assets,url.pathname)){
       const [type,data]=assets[url.pathname];
       return await send(new Response(data,{headers:{'Content-Type':type+'; charset=utf-8'}}));

@@ -153,6 +153,31 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  await wizard.waitFor({state:'hidden'});
  assert.equal((await (await barber.request.get(base+'/api/v1/agenda')).json()).onboarded,true);
  await barber.locator('#controls').waitFor();
+ const manifestResponse=await barber.request.get(base+'/manifest.webmanifest');
+ assert.match(manifestResponse.headers()['content-type'],/^application\/manifest\+json/);
+ const manifest=await manifestResponse.json();
+ assert.deepEqual([manifest.name,manifest.start_url,manifest.scope,manifest.display],['Turno Listo','/barbero','/','standalone']);
+ assert.ok(manifest.icons.some(icon=>icon.purpose==='maskable'));
+ for(const icon of manifest.icons){
+  const response=await barber.request.get(base+icon.src);
+  assert.equal(response.status(),200);
+  assert.match(response.headers()['content-type'],/^image\/png/);
+  const png=await response.body(), size=Number(icon.sizes.split('x')[0]);
+  assert.equal(png.readUInt32BE(16),size);assert.equal(png.readUInt32BE(20),size);
+ }
+ const sw=await barber.request.get(base+'/sw.js');
+ assert.match(sw.headers()['content-type'],/^text\/javascript/);
+ assert.equal(sw.headers()['cache-control'],'no-cache');
+ assert.equal(sw.headers()['service-worker-allowed'],'/');
+ await barber.waitForFunction(()=>navigator.serviceWorker.controller);
+ assert.equal(await barber.evaluate(async()=> (await fetch('/api/v1/agenda')).ok),true);
+ assert.deepEqual(await barber.evaluate(async()=>{
+  const keys=await caches.keys(), paths=[];
+  for(const key of keys)for(const request of await (await caches.open(key)).keys()){
+   const url=new URL(request.url);if(url.pathname.startsWith('/api/')||url.searchParams.has('t'))paths.push(url.pathname);
+  }
+  return paths;
+ }),[]);
  await enabled(barber,'#toggle');
  assert.equal(await barber.evaluate(()=>performance.timeOrigin),initialDocument);
  await barber.locator('#toggle').click();
@@ -221,6 +246,11 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
  assert.equal(await barber.locator('#onboarding').isVisible(),false);
  assert.equal(await barber.locator('#tab-ajustes').getAttribute('aria-selected'),'true');
  await barber.locator('#accountSection summary').click();
+ await barber.evaluate(()=>{
+  const install=new Event('beforeinstallprompt',{cancelable:true});install.prompt=async()=>{};window.dispatchEvent(install);
+ });
+ assert.equal(await barber.locator('#installApp').isVisible(),true);
+ if(process.env.TURNO_SCREENSHOTS_DIR)await barber.screenshot({path:join(process.env.TURNO_SCREENSHOTS_DIR,'5-instalar.png')});
  await Promise.all([barber.waitForNavigation(),barber.getByRole('button',{name:'Cerrar sesión'}).click()]);
  const loginDocument=await barber.evaluate(()=>performance.timeOrigin);
  await login.getByLabel('Correo').fill(email);
