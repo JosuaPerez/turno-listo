@@ -305,7 +305,7 @@ function settingsPayload(){
 function syncSaveButton(){
  const save=$('saveSettings');
  save.hidden=selected!=='ajustes'||!settingsDirty;
- $('panelBottom').classList.toggle('has-save',!save.hidden);
+ document.body.classList.toggle('has-floating-save',!save.hidden);
 }
 
 function updateDirty(){

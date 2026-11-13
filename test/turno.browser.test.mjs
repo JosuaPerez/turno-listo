@@ -232,9 +232,10 @@ test('barbero y cliente completan el flujo sin recargar y el polling se reanuda'
   await mkdir(process.env.TURNO_SCREENSHOTS_DIR,{recursive:true});
   await barber.screenshot({path:join(process.env.TURNO_SCREENSHOTS_DIR,'0-barra.png')});
  }
- assert.equal(await barber.locator('#panelBottom #saveSettings').isVisible(),true);
+ assert.equal(await barber.locator('#saveSettings').isVisible(),true);
  const tabsBox=await barber.locator('#panelTabs').boundingBox(), saveBox=await barber.locator('#saveSettings').boundingBox();
- assert.ok(Math.abs(tabsBox.y-saveBox.y)<=4,'Guardar comparte la fila de pestañas');
+ assert.ok(saveBox.y+saveBox.height<tabsBox.y,'Guardar flota encima de las pestañas');
+ assert.ok(360-saveBox.x-saveBox.width<=20,'Guardar se alinea a la derecha');
  await tab(barber,'Fila');
  assert.equal(await barber.locator('#saveSettings').isVisible(),false);
  await tab(barber,'Ajustes');
